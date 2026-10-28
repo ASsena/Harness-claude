@@ -36,6 +36,7 @@ Tudo fica com o prefixo do plugin:
 | --- | --- |
 | Pipeline completo de uma WI | `claude --agent harness:pipeline-agent` |
 | Só planejar | `claude --agent harness:plan-task-agent` ou `/harness:plan-task <WI>` |
+| Mockup de tela de uma WI | roda dentro do `/harness:plan-task`; avulso: `/harness:mockup-task <WI>` |
 | Skills avulsas | `/harness:spec-task`, `/harness:audit-task`, `/harness:revise`, `/harness:execute-implement`… |
 | Subagentes | `harness:execute-task-agent`, `harness:graduation-agent`, `harness:code-reviewer-agent`, `harness:fix-task-agent` |
 

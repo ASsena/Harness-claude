@@ -75,6 +75,12 @@ Antes de desenhar qualquer fatia, percorra a hierarquia do `CLAUDE.md` §3 pelas
 
 ---
 
+## 3a. Mudança visual? — mockup antes das fatias
+
+Se a WI mexe em tela (critérios no §1 da skill `mockup-task`), carregue a skill `mockup-task` com a tool Skill e execute-a nesta thread, reaproveitando a WI já lida. O mockup precisa estar **aprovado pelo dev** antes de você escrever as fatias: sem aprovação, o plano não é gravado. As decisões fechadas no mockup entram em "Decisões (não reabrir)".
+
+---
+
 ## 4. A régua dos 95% — bloqueia e pergunta
 
 Qualquer ponto em que a certeza fique abaixo de **95%** trava a gravação do plano. Disciplina da skill `grilling`, igual ao `/spec-task` §0:
@@ -125,7 +131,7 @@ Corpo, na ordem:
 2. **Decisões (não reabrir)** — o que foi fechado com o dev no §4, uma linha cada, com o porquê. É o que impede o Cursor de "melhorar" a decisão.
 3. **Arquitetura** — o desenho; diagrama quando o fluxo tiver mais de dois saltos.
 3a. **Manifesto de execução** — obrigatório. O formato vem de `.cursor/commands/execute.md`, e as regras de preenchimento estão na seção "Manifesto de execução" da `plan-for-cursor`. O SHA-base é o `HEAD` na hora de commitar o plano.
-4. **Fatias** — cada uma com arquivos e caminhos reais, portas que já existem (verificadas, passe 1 da `plan-for-cursor`) e as que o plano manda criar.
+4. **Fatias** — cada uma com arquivos e caminhos reais, portas que já existem (verificadas, passe 1 da `plan-for-cursor`) e as que o plano manda criar. Fatia que mexe em tela cita o mockup aprovado (`docs/mockups/wi-<id>-<slug>.html`) e lista os componentes a reaproveitar (com caminho e variação) e os novos — o Cursor não escolhe outros.
 5. **Testes** — por teste: a linha de produção que a asserção observa, o caminho até ela, ou o fixture delegado com propriedade + discriminante.
 6. **Gate por gatilho** — derivado de `.cursor/rules/110-cursor-workflow.mdc` §"Gate de pronto" e `060` §"Pronto ≠ `--filter`" (**abra os dois**), dizendo qual gatilho disparou e **qual não disparou, e por quê**.
 7. **Verificações feitas antes de entregar este plano** — a tabela obrigatória da `plan-for-cursor`.
@@ -142,7 +148,7 @@ Duas fronteiras que o plano precisa dizer em voz alta, porque o Cursor erra nela
 O plano só existe de verdade depois de commitado: plano não commitado é sobrescrito pelo primeiro `git merge` e some sem aviso (`plan-for-cursor` §7).
 
 1. **Confira a branch corrente.** `master` **não aceita push direto** (TF402455) e nem deve receber o plano: crie `feature/wi-<id>-<slug>` a partir dela — é o nome que habilita a rastreabilidade que o `/audit-task` usa depois. Se já estiver numa branch de trabalho, commite nela.
-2. **Commite** o `.cursor/plans/*.plan.md` e, quando materializado, o `backlog/tasks/<id>-<slug>.md`. Nada mais entra nesse commit: edição de harness, skill, hook ou doc de governança vai em **branch separada**, mesmo que feita nesta sessão.
+2. **Commite** o `.cursor/plans/*.plan.md`, quando materializado o `backlog/tasks/<id>-<slug>.md` e, quando houve mockup, o `docs/mockups/wi-<id>-<slug>.html` aprovado (e o `docs/mockups/_design-system.md`, se foi criado ou atualizado). Nada mais entra nesse commit: edição de harness, skill, hook ou doc de governança vai em **branch separada**, mesmo que feita nesta sessão.
 3. **Não faça push nem abra PR por iniciativa própria** — pergunte. Se o dev pedir, confirme depois com `git log` local × `origin/<branch>` que o push realmente saiu.
 
 ---
@@ -152,6 +158,7 @@ O plano só existe de verdade depois de commitado: plano não commitado é sobre
 Diga ao dev, em poucas linhas:
 
 - caminho do plano e as fatias, na ordem;
+- quando houve mockup, o caminho do HTML aprovado e quantos componentes foram reaproveitados × criados;
 - as perguntas do §4 e o que foi decidido em cada uma;
 - o que ficou **fora** do escopo de propósito;
 - o gate que o plano exige e o que ele dispensa, com o motivo;
