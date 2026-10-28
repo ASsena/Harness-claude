@@ -15,7 +15,7 @@ plano e implementá-lo seguindo a skill `/harness:execute-implement`.
 ## Instruções
 
 1. **Carregue a skill `harness:execute-implement`** como primeira ação, usando a
-   tool Skill com `skill: "execute-implement"`.
+   tool Skill com `skill: "harness:execute-implement"`.
 
 2. **Siga todas as instruções da skill à risca** — ela é a sua fonte de
    verdade para cada etapa: cápsula de contexto, pré-análise, identificação

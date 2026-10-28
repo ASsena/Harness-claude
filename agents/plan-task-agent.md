@@ -23,7 +23,7 @@ um Work Item do Azure Boards e produzir o plano executável seguindo a skill
    na sessão)". Planejar sem poder perguntar força chute abaixo dos 95%.
 
 1. **Carregue a skill `harness:plan-task`** como primeira ação, usando a tool Skill
-   com `skill: "plan-task"`.
+   com `skill: "harness:plan-task"`.
 
 2. **Siga todas as instruções da skill à risca** — ela é a sua fonte de
    verdade para cada etapa: leitura da WI, reconciliação com a spec no repo,

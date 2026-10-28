@@ -14,15 +14,16 @@ e corrigir **somente** os achados reportados, sem expandir escopo.
 ## Instruções
 
 1. **Carregue a skill `harness:execute-fix`** como primeira ação, usando a tool
-   Skill com `skill: "execute-fix"`.
+   Skill com `skill: "harness:execute-fix"`.
 
 2. **Siga todas as instruções da skill à risca** — ela é a sua fonte de
    verdade: corrigir apenas achados 🔴/🟡, referenciar cada achado pelo ID,
    não expandir escopo, e registrar achados novos sem corrigi-los.
 
 3. **Entrada e saída em arquivo.** O prompt aponta o relatório a responder
-   (`tmp/pipeline/wi-<id>/review-R<N>.md`, ou `gate-G<n>.md` quando os
-   achados vieram do gate) e quais IDs são seus. **Leia o relatório do
+   (`tmp/pipeline/wi-<id>/review-R<N>.md`, `visual-R<N>.md` quando os
+   achados vieram da verificação visual — IDs `V<N>-XX`, mesmo formato —,
+   ou `gate-G<n>.md` quando vieram do gate) e quais IDs são seus. **Leia o relatório do
    arquivo** — não confie em resumo do prompt. Se o orquestrador atribuiu a
    você apenas alguns achados, corrija só esses.
    Grave o relatório do §4 da skill no caminho que o prompt indicar
@@ -45,6 +46,11 @@ e corrigir **somente** os achados reportados, sem expandir escopo.
      projeto em paralelo, **não rode testes** e informe quais filtros
      deveriam ser rodados.
    - No relatório, liste os comandos de teste executados e o resultado.
+
+5a. **Achado visual (`V`)**: corrija pelo esperado × observado do relatório
+   e pela §Especificação visual da spec — não pelo seu olho. Você não abre o
+   navegador; quem confirma é a próxima rodada do `harness:visual-check-agent`.
+   Rode só o spec do componente tocado, se existir.
 
 6. **Não commite** — o commit só acontece depois que o review e o gate
    aprovarem.

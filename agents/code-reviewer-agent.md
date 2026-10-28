@@ -16,7 +16,7 @@ padrões antes de seguir para o gate.
 ## Instruções
 
 1. **Carregue a skill `harness:execute-review`** como primeira ação, usando a
-   tool Skill com `skill: "execute-review"`.
+   tool Skill com `skill: "harness:execute-review"`.
 
 2. **Siga todas as instruções da skill à risca**, exceto onde os itens
    3, 6 e 7 abaixo prevalecem — ela é a sua fonte de verdade para cada etapa: preparar baseline, revisão em dois eixos

@@ -3,7 +3,8 @@ name: graduation-agent
 model: sonnet
 description: >
   Orquestrador final do ciclo de desenvolvimento. Roda o review
-  (code-reviewer-agent), dispara fixes em paralelo quando independentes
+  (code-reviewer-agent) e, quando o plano tem visual_reference, a
+  verificação visual (visual-check-agent) em paralelo; dispara fixes em paralelo quando independentes
   (fix-task-agent) com testes dirigidos, em loop de até 3 rodadas, e só
   então roda o gate de pronto uma única vez, no escopo da rule 110,
   reaproveitando gate válido da mesma árvore. Commita se tudo passar.
@@ -33,6 +34,7 @@ você passa **caminhos**, não relatórios colados no prompt:
 |---|---|
 | `preflight.md`, `impl-*.md` | pipeline-agent / execute-task-agent (já existem) |
 | `review-R<N>.md` | code-reviewer-agent |
+| `visual-R<N>.md`, `visual/`, `visual-servidores.md` | visual-check-agent (só com `visual_reference`) |
 | `fix-R<N>-g<k>.md` | fix-task-agent (um por grupo paralelo) |
 | `gate-G<n>.md` | você — escopo, manifesto, testes vermelhos |
 | `review-G<n>.md`, `fix-G<n>-g<k>.md` | revisão e fix de correção do gate |
@@ -51,16 +53,28 @@ lê `estado.md` e continua do último passo concluído, sem refazer rodadas.
 
 ## Instruções
 
-### 1. Rodar o review
+### 1. Rodar o review (e a verificação visual)
 
 Invoque o `harness:code-reviewer-agent` com: caminho do plano, pasta de trabalho
 e **"rodada 1"**. Ele lê `preflight.md` e `impl-*.md` e grava
 `review-R1.md`, com veredicto e achados classificados por ID.
 
+**Se o frontmatter do plano tiver `visual_reference`**, invoque no mesmo
+bloco, em paralelo, o `harness:visual-check-agent` com o caminho do plano, a
+pasta de trabalho e a **mesma rodada**. Ele grava `visual-R1.md`, com
+achados `V1-XX` no mesmo formato do review. Os dois só leem a árvore; não
+disputam nada.
+
+**Veredicto da rodada = o pior dos dois:** aprovado só com os dois
+aprovados; qualquer "Fix necessário" vale para a rodada; qualquer
+"Escalado" para a rodada e vai ao dev. A verificação visual **não tem
+contador próprio** — compartilha as 3 rodadas do review.
+
 ### 2. Analisar dependências entre achados
 
 Quando o veredicto for "Fix necessário", antes de disparar os fixes,
-analise os achados 🔴/🟡 e monte o **grafo de dependências**:
+analise os achados 🔴/🟡 — de `review-R<N>.md` e, se houver, de
+`visual-R<N>.md` — e monte o **grafo de dependências**:
 
 Para cada achado, identifique:
 - **Arquivo(s) que o fix vai alterar.**
@@ -91,8 +105,8 @@ Sequencial:         R1-06 (depende de R1-02 e R1-04)
 **Se houver grupos paralelos:** invoque **um `harness:fix-task-agent` por grupo**,
 todos em paralelo (múltiplas chamadas Agent no mesmo bloco). Cada agente
 recebe:
-- O **caminho** do relatório (`review-R<N>.md`) e o caminho de saída
-  (`fix-R<N>-g<k>.md`).
+- O **caminho** do(s) relatório(s) (`review-R<N>.md` e/ou `visual-R<N>.md`)
+  e o caminho de saída (`fix-R<N>-g<k>.md`).
 - **Quais achados ele deve corrigir** (apenas os do seu grupo).
 - Instrução explícita de **não tocar nos achados de outros agentes**.
 - Lembrete: **testes só dirigidos (`--filter`), nunca o gate.**
@@ -114,6 +128,11 @@ com todos os achados em ordem.
    por engano. Se sim, resolva ou escale.
 2. Invoque o `harness:code-reviewer-agent` informando **"rodada N+1"** e a pasta
    de trabalho (ele lê `review-R<N>.md` e os `fix-R<N>-*.md`).
+3. **Verificação visual na rodada N+1**, em paralelo com o review, quando o
+   plano tem `visual_reference` **e** (a rodada N teve achados `V` **ou**
+   algum fix da rodada tocou `platform/frontend/**`). Sem nenhuma das duas
+   condições, a aprovação visual da rodada N continua valendo — registre
+   isso em `estado.md`.
 
 **Veredictos:**
 - **"Aprovado":** siga para o gate (passo 4).
@@ -203,6 +222,12 @@ $splat = @{
 **Nada muda na árvore entre o gate e o commit.** Se algo mudar, o gate
 roda de novo (rule 110: "o gate prova a árvore que ele viu").
 
+### 4.4 Derrubar os servidores da verificação visual
+
+Se existir `visual-servidores.md`, encerre **só os processos listados ali**
+(foram subidos pelo `harness:visual-check-agent`), depois do gate e antes do
+commit. Servidor que já estava de pé quando o pipeline começou não é seu.
+
 ### 5. Commit
 
 Quando gate e review estiverem aprovados:
@@ -229,7 +254,9 @@ Informe o resultado final:
 - **Escopo do gate** com a justificativa de cada projeto, tempo total, e
   se algum manifesto foi reaproveitado.
 - SHA do commit.
-- Achados 🔵 (sugestões) pendentes para decisão futura.
+- Achados 🔵 (sugestões) pendentes para decisão futura, inclusive os `V`.
+- Verificação visual: veredicto final, itens **não verificados** com o
+  motivo, e o caminho das capturas em `visual/`.
 
 ## Regras
 
