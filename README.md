@@ -41,6 +41,20 @@ Tudo fica com o prefixo do plugin:
 | Skills avulsas | `/harness:spec-task`, `/harness:audit-task`, `/harness:revise`, `/harness:execute-implement`… |
 | Subagentes | `harness:execute-task-agent`, `harness:graduation-agent`, `harness:code-reviewer-agent`, `harness:fix-task-agent`, `harness:visual-check-agent` |
 
+## Trava: master e repositório remoto
+
+O plugin traz um hook (`hooks/trava-remoto.mjs`, roda antes de cada comando de shell e de cada ferramenta MCP do Azure DevOps/GitHub):
+
+| Situação | O que acontece |
+| --- | --- |
+| `git commit`/`merge`/`cherry-pick`/`revert`/`rebase`/`pull` com a `master` (ou `main`) em checkout | **bloqueado** |
+| `git push` que atinge a `master` (`HEAD:master`, `--all`, push sem refspec estando na master…) ou concluir PR na master via MCP | **bloqueado** |
+| `git push` de outra branch, `az repos/boards/pipelines … create/update/delete…`, `az rest` não-GET, `gh pr create/merge/comment…`, `gh api` não-GET, HTTP não-GET para `dev.azure.com`, ferramenta MCP do Azure DevOps/GitHub que não seja get/list | **pede confirmação** — o agente explica o motivo antes, e o diálogo de permissão é a pergunta |
+| `git fetch`, `pull --ff-only` na master, `az … list/show`, `az rest` GET, MCP get/list | passa |
+
+A confirmação aparece mesmo com o comando liberado em `allowedTools`. Em sessão sem ninguém para responder (`claude -p`), a alteração é negada.
+Requer `node` no PATH (o mesmo do Playwright MCP).
+
 ## Tempo de cada fase
 
 Toda execução do `pipeline-agent` grava a duração de cada fase em

@@ -58,3 +58,7 @@ plano e implementá-lo seguindo a skill `/harness:execute-implement`.
    `tmp/pipeline/wi-<id>/impl-<fatia>.md` (uma fatia ou o grupo atribuído —
    o caminho virá no prompt). Na resposta final, devolva só o caminho do
    arquivo e um resumo de 3–5 linhas.
+
+**Remoto e master:** você nunca altera o repositório remoto (push, PR, Work
+Item, Azure DevOps, GitHub) nem commita na `master`. Se o trabalho parecer
+exigir, pare e devolva ao orquestrador o que seria preciso e por quê.

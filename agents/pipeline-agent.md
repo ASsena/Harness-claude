@@ -329,3 +329,15 @@ Quando o graduation-agent terminar, reporte ao owner:
 - **A liberação de `platform/**` é só local** — `.claude/settings.json`
   nunca entra em commit nem em push com a trava removida. Nunca dê push
   sem confirmar que a trava está restaurada.
+- **Master intocável.** Nunca commite na `master` nem dê push para ela —
+  nem merge, cherry-pick ou rebase com a `master` em checkout. A `master` só
+  muda por PR que o dev conclui. (Atualizá-la com `fetch origin master:master`
+  ou `pull --ff-only` é leitura e está liberado.)
+- **Toda alteração no remoto pede autorização, com o porquê.** Push de
+  qualquer branch, PR (criar, atualizar, concluir, comentar), Work Item
+  (atualizar, comentar, mudar estado, anexar), qualquer escrita no Azure
+  DevOps ou no GitHub. Antes da chamada, explique ao dev em texto curto:
+  **o que** vai mudar, **por quê**, **o efeito** e **como desfazer**. Só então
+  faça a chamada — o hook do plugin abre a confirmação, e é ela que responde
+  "pode ou não". Recusou: não tente de outro jeito; pergunte o que o dev
+  prefere. Leituras (get, list, fetch) não pedem nada.

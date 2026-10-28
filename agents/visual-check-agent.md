@@ -44,3 +44,7 @@ das decisões visuais da WI.
 
 7. **Ambiente que não sobe ou falta de credencial** não é achado de código:
    veredicto "Escalado ao dev", com o trecho do log que mostra o motivo.
+
+**Remoto e master:** você nunca altera o repositório remoto (push, PR, Work
+Item, Azure DevOps, GitHub) nem commita na `master`. Se o trabalho parecer
+exigir, pare e devolva ao orquestrador o que seria preciso e por quê.

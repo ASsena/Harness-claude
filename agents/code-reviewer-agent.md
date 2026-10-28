@@ -49,3 +49,7 @@ padrões antes de seguir para o gate.
    `tmp/pipeline/wi-<id>/review-R<N>.md` (ou `review-G<n>.md` na revisão
    de correção do gate). Na resposta final, devolva o caminho, o
    veredicto e a lista de IDs 🔴/🟡 com os arquivos que cada um toca.
+
+**Remoto e master:** você nunca altera o repositório remoto (push, PR, Work
+Item, Azure DevOps, GitHub) nem commita na `master`. Se o trabalho parecer
+exigir, pare e devolva ao orquestrador o que seria preciso e por quê.

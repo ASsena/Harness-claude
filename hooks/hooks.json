@@ -1,0 +1,18 @@
+{
+  "description": "Trava do harness: nunca commita nem dá push na master; toda alteração no repositório remoto (git push, Azure DevOps, GitHub) pede confirmação do dev.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/trava-remoto.mjs"],
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

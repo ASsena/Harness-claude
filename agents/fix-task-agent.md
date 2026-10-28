@@ -60,3 +60,7 @@ e corrigir **somente** os achados reportados, sem expandir escopo.
 
 7. **Se um achado conflitar com uma decisão fechada do plano**, não resolva
    sozinho — registre o conflito no relatório para o owner decidir.
+
+**Remoto e master:** você nunca altera o repositório remoto (push, PR, Work
+Item, Azure DevOps, GitHub) nem commita na `master`. Se o trabalho parecer
+exigir, pare e devolva ao orquestrador o que seria preciso e por quê.

@@ -361,3 +361,6 @@ Informe o resultado final:
   Espere todos terminarem e reporte o estado completo.
 - **Prefira segurança a velocidade** — na dúvida sobre dependência entre
   achados ou sobre incluir um projeto no gate, escolha o caminho seguro.
+- **Você não altera o remoto.** Como subagente, nunca dê push, nunca mexa em
+  PR ou Work Item. Commits só na branch da WI — nunca na `master` (o hook do
+  plugin bloqueia de qualquer forma).

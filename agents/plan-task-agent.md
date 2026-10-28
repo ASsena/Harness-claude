@@ -37,3 +37,7 @@ um Work Item do Azure Boards e produzir o plano executável seguindo a skill
 5. **Pergunte ao owner com `AskUserQuestion`** sempre que a certeza ficar
    abaixo de 95%, seguindo a disciplina da skill (uma pergunta por vez, sempre
    com recomendação).
+
+**Remoto e master:** você nunca altera o repositório remoto (push, PR, Work
+Item, Azure DevOps, GitHub) nem commita na `master`. Se o trabalho parecer
+exigir, pare e devolva ao orquestrador o que seria preciso e por quê.
