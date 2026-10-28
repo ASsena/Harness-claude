@@ -6,7 +6,8 @@ description: >
   (code-reviewer-agent) e, quando o plano tem visual_reference, a
   verificação visual (visual-check-agent) em paralelo; dispara fixes em paralelo quando independentes
   (fix-task-agent) com testes dirigidos, em loop de até 3 rodadas, e só
-  então roda o gate de pronto uma única vez, no escopo da rule 110,
+  então integra a master na branch da WI (resolvendo conflitos) e roda o
+  gate de pronto uma única vez, já na árvore mergeada, no escopo da rule 110,
   reaproveitando gate válido da mesma árvore. Commita se tudo passar.
   É o único dono da contagem de rodadas e das tentativas de gate.
 ---
@@ -36,6 +37,8 @@ você passa **caminhos**, não relatórios colados no prompt:
 | `review-R<N>.md` | code-reviewer-agent |
 | `visual-R<N>.md`, `visual/`, `visual-servidores.md` | visual-check-agent (só com `visual_reference`) |
 | `fix-R<N>-g<k>.md` | fix-task-agent (um por grupo paralelo) |
+| `merge-M<n>.md` | você — conflitos, classificação, resoluções |
+| `review-M<n>.md`, `fix-M<n>-g<k>.md` | revisão e fix das resoluções de conflito |
 | `gate-G<n>.md` | você — escopo, manifesto, testes vermelhos |
 | `review-G<n>.md`, `fix-G<n>-g<k>.md` | revisão e fix de correção do gate |
 | `estado.md` | você — rodada atual, tentativa de gate, próximo passo |
@@ -47,6 +50,9 @@ lê `estado.md` e continua do último passo concluído, sem refazer rodadas.
 
 - **Rodadas de review:** máx 3. Você numera e informa a rodada no prompt
   do `harness:code-reviewer-agent`; ele não conta sozinho.
+- **Integração da master:** uma por graduação (`M1`). Se o gate falhar e a
+  correção levar mais tempo que a master levou para andar, não integre de
+  novo sozinho — o PR resolve o resto.
 - **Tentativas de gate:** máx 2 (`G1`, `G2`). Fix e revisão vindos do gate
   usam a numeração `G<n>` e **não consomem** as 3 rodadas de review.
 - Estourou qualquer contador → escale ao owner. Não abra rodada extra.
@@ -135,19 +141,78 @@ com todos os achados em ordem.
    isso em `estado.md`.
 
 **Veredictos:**
-- **"Aprovado":** siga para o gate (passo 4).
+- **"Aprovado":** siga para a integração da master (passo 3.5).
 - **"Fix necessário":** se a rodada atual for menor que 3, repita o ciclo
   (nova análise de dependências sobre os achados restantes). Se já for a
   rodada 3, trate como escalado — não existe rodada 4.
 - **"Escalado ao owner":** pare e apresente os achados persistentes
   com recomendação. Não prossiga sem resposta.
 
+### 3.5 Integrar a master — depois do review, antes do gate
+
+O gate prova a árvore que ele viu (rule 110). Por isso a master entra
+**antes** dele: o que vai para o PR é a árvore mergeada, e é ela que o gate
+precisa provar. E entra **depois** do review, para o review ter avaliado só
+o trabalho da WI, sem o diff de outras pessoas.
+
+**Direção: a master entra na branch da WI.** Nunca o contrário, nunca push
+para a master (TF402455). O pipeline entrega a branch pronta para o PR.
+
+1. **Commit da implementação**, para começar o merge com a árvore limpa.
+   Stage **por nome**, só os arquivos do plano; confira
+   `git diff --cached --name-only` e aborte se `.claude/settings.json`
+   aparecer. A trava de `platform/**` continua liberada até o commit final
+   (passo 5): a resolução de conflito pode precisar editar ali.
+2. **Atualize a master local sem trocar de branch:**
+   `git fetch origin master:master`. Se recusar por não ser fast-forward, a
+   master local divergiu da remota: pare e escale ao dev.
+3. **Merge:** `git merge --no-ff master -m "Merge master em <branch da WI>"`.
+   - Sem conflito: grave `merge-M1.md` ("sem conflitos", SHA da master
+     integrada) e siga para o passo 4.
+   - Se o git recusar por causa de `.claude/settings.json` (a master mudou o
+     arquivo que está liberado localmente): `git merge --abort` e escale ao
+     dev. Não descarte a liberação nem a mudança da master por conta própria.
+4. **Com conflito**, liste os arquivos (`git diff --name-only --diff-filter=U`)
+   e classifique cada um em `merge-M1.md`, com IDs `M1-XX`:
+
+   | Tipo | Exemplos | Quem resolve |
+   |---|---|---|
+   | **Mecânico** | imports, registros de DI/rotas lado a lado, edições adjacentes que não se tocam, formatação | `harness:fix-task-agent`, mantendo os dois lados |
+   | **Gerado** | `package-lock.json`, tipos gerados da API, snapshots | nunca à mão: pegue a versão da master e regenere com o comando do repo |
+   | **Semântico** | os dois lados mudaram **comportamento** no mesmo trecho; mudança que toca decisão de outra WI ou um ADR | **o dev** — escale |
+   | **Migrations** | migrations do EF ou `ModelSnapshot` dos dois lados | **sempre o dev** — escale |
+
+   Para cada conflito: arquivo, o que a WI queria (pelo plano e pela spec),
+   o que a master trouxe (`git log master -- <arquivo>`, com WI/PR de origem
+   quando houver) e a resolução proposta.
+
+5. **Semântico ou migrations presentes:** não resolva nada ainda. Grave as
+   perguntas em `merge-M1.md`, cada uma com recomendação, atualize
+   `estado.md` ("aguardando dev: conflitos M1") e **devolva "Escalado:
+   conflito de merge"** ao chamador. O merge fica em andamento; quem retomar
+   lê `merge-M1.md` com as respostas do dev e continua daqui. Se o dev
+   mandar desistir: `git merge --abort` e encerre sem integrar.
+6. **Resolução:** invoque o `harness:fix-task-agent` com `merge-M1.md` e os IDs
+   a resolver (mesma regra de grupos paralelos do passo 3: arquivos
+   diferentes podem ir em paralelo). Depois, confirme que não sobrou
+   marcador (`git diff --check` e busca por `<<<<<<<`), dê stage por nome e
+   conclua o merge com `git commit --no-edit`.
+7. **Revisão das resoluções:** `harness:code-reviewer-agent` com
+   `review-M1.md`, olhando **só os trechos resolvidos** contra o plano e a
+   spec. Não consome rodada de review. Se algum conflito foi em tela e o
+   plano tem `visual_reference`, rode também o `harness:visual-check-agent`
+   (rodada `M1`). Achados → `harness:fix-task-agent` (`fix-M1-g<k>.md`) →
+   nova revisão `M1`, no máximo 2 vezes; depois disso, escale.
+
 ### 4. Gate de pronto — uma vez, no escopo certo
 
 #### 4.1 Montar o escopo a partir do diff
 
-Liste os arquivos alterados desde a baseline do plano
-(`git diff --name-only <baseline>` + `git status --porcelain`) e monte a
+Liste os arquivos que **a branch da WI** mudou em relação à master
+integrada (`git diff --name-only master...HEAD`, três pontos — o que a branch
+tem e a master não), mais os arquivos de conflito resolvidos em
+`merge-M1.md`, mais `git status --porcelain`. O que veio da master já passou
+pelo gate do PR de origem. Com essa lista, monte a
 lista de projetos **seguindo a rule `110-cursor-workflow.mdc`, seção
 "Gate de pronto", palavra por palavra**. Resumo (a rule prevalece se divergir):
 
@@ -218,6 +283,9 @@ $splat = @{
   (a árvore mudou; o manifesto anterior não vale mais).
   **Máximo 2 tentativas de gate.** Se o G2 falhar, ou se a falha não for
   corrigível, escale ao owner com os testes vermelhos e o que já foi tentado.
+  **Teste vermelho que não é da WI nem de uma resolução** (falha também na
+  master pura — confira com `git stash`/worktree da master só para aquele
+  teste): não corrija código da master; escale ao dev com a evidência.
 
 **Nada muda na árvore entre o gate e o commit.** Se algo mudar, o gate
 roda de novo (rule 110: "o gate prova a árvore que ele viu").
@@ -228,13 +296,17 @@ Se existir `visual-servidores.md`, encerre **só os processos listados ali**
 (foram subidos pelo `harness:visual-check-agent`), depois do gate e antes do
 commit. Servidor que já estava de pé quando o pipeline começou não é seu.
 
-### 5. Commit
+### 5. Commit final
 
-Quando gate e review estiverem aprovados:
+A implementação e o merge já foram commitados no passo 3.5. Aqui só entra o
+que mudou depois disso (correções do gate), se houver:
 
-1. Stage os arquivos alterados pelo plano.
-2. Crie o commit com mensagem descritiva referenciando a WI.
-3. Rode `git status` para confirmar sucesso.
+1. Restaure a trava de `platform/**` como o pipeline-agent instruiu.
+2. Stage **por nome** só os arquivos das correções; aborte se
+   `.claude/settings.json` aparecer em `git diff --cached --name-only`.
+3. Commit referenciando a WI. Nada mudou fora do que o gate viu.
+4. `git status` limpo e `git log --oneline master..HEAD` para o relatório.
+5. **Não faça push nem abra PR.** Isso é decisão do dev.
 
 ### 6. Registrar rodada
 
@@ -253,7 +325,9 @@ Informe o resultado final:
 - Caminho da pasta de trabalho.
 - **Escopo do gate** com a justificativa de cada projeto, tempo total, e
   se algum manifesto foi reaproveitado.
-- SHA do commit.
+- SHA do commit final e da master integrada; conflitos (`M1-XX`) e como
+  cada um foi resolvido — inclusive os que o dev decidiu.
+- Que a branch está pronta para o PR, sem push feito.
 - Achados 🔵 (sugestões) pendentes para decisão futura, inclusive os `V`.
 - Verificação visual: veredicto final, itens **não verificados** com o
   motivo, e o caminho das capturas em `visual/`.

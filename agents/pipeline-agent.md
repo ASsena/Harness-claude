@@ -50,6 +50,18 @@ essa trava **apenas na cópia local**:
 `git add -A`, `git add .` ou `git commit -a` enquanto ela estiver ativa, e
 nunca inclua `.claude/settings.json` em stage.
 
+### 0.05 Master em dia antes de criar a branch
+
+Antes de planejar, atualize a master local, para a branch da WI nascer em
+dia e o merge do fim ter menos conflito:
+
+- Fora da master: `git fetch origin master:master`.
+- Na master: `git pull --ff-only origin master` (com mudanças locais não
+  commitadas que não sejam a liberação do passo 0, pare e pergunte).
+- Recusou por não ser fast-forward: a master local divergiu — pergunte ao dev.
+- Retomada com a branch da WI já existente: pule; o passo 3.5 da graduação
+  integra a master no fim.
+
 ### 0.1 Pasta de trabalho
 
 Crie `tmp/pipeline/wi-<id>/`. Todo o estado do pipeline vive ali, e os
@@ -210,11 +222,20 @@ Se encontrar problemas, corrija-os antes de seguir para a graduação.
 Invoque o `harness:graduation-agent` passando o caminho do plano e a pasta de
 trabalho `tmp/pipeline/wi-<id>/` (com `preflight.md` e `impl-*.md`).
 
-Ele vai conduzir o ciclo review ↔ fix → gate → commit.
+Ele vai conduzir o ciclo review ↔ fix → integração da master → gate → commit.
 
-Inclua no prompt dele esta instrução obrigatória para o passo de commit:
+**Conflito de merge escalado.** Se ele devolver "Escalado: conflito de
+merge", leia `merge-M1.md` e leve cada pergunta ao dev com `AskUserQuestion`,
+**uma por vez, com a recomendação que está no arquivo**. Grave as respostas
+no próprio `merge-M1.md` e retome o graduation-agent (`SendMessage` para o
+mesmo agente; se não der, nova invocação — ele retoma por `estado.md`).
+Nunca escolha um lado por ele.
 
-> Antes de dar stage, restaure a trava de `platform/**`:
+Inclua no prompt dele esta instrução obrigatória para o commit final
+(os commits intermediários do passo 3.5 dão stage por nome e conferem que
+`.claude/settings.json` não está em stage, sem restaurar a trava):
+
+> Antes de dar stage no commit final, restaure a trava de `platform/**`:
 > `git update-index --no-skip-worktree .claude/settings.json; git restore .claude/settings.json`.
 > Confirme com `git diff --quiet .claude/settings.json` (sem saída = restaurado)
 > e que o `deny` contém `Edit(platform/**)`, `Write(platform/**)` e

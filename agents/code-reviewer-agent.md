@@ -29,6 +29,8 @@ padrões antes de seguir para o gate.
    - Rodada N > 1: também `review-R<N-1>.md` e os `fix-R<N-1>-*.md`,
      para o de-para do §4 da skill.
    - Revisão de correção do gate: `gate-G<n>.md` e `fix-G<n>-*.md`.
+   - Revisão de resolução de conflito: `merge-M<n>.md` e `fix-M<n>-*.md`;
+     revise **só os trechos resolvidos** e grave `review-M<n>.md`.
    O caminho do plano também virá no prompt.
 
 4. **Não escreva código de produto** — você revisa, classifica achados e

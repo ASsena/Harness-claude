@@ -23,7 +23,10 @@ e corrigir **somente** os achados reportados, sem expandir escopo.
 3. **Entrada e saída em arquivo.** O prompt aponta o relatório a responder
    (`tmp/pipeline/wi-<id>/review-R<N>.md`, `visual-R<N>.md` quando os
    achados vieram da verificação visual — IDs `V<N>-XX`, mesmo formato —,
-   ou `gate-G<n>.md` quando vieram do gate) e quais IDs são seus. **Leia o relatório do
+   `gate-G<n>.md` quando vieram do gate, ou `merge-M<n>.md` para resolver
+   conflitos de merge — IDs `M<n>-XX`, com a resolução já decidida) e quais
+   IDs são seus. Em conflito, aplique **exatamente** a resolução do arquivo,
+   remova os marcadores e não "melhore" nenhum dos dois lados. **Leia o relatório do
    arquivo** — não confie em resumo do prompt. Se o orquestrador atribuiu a
    você apenas alguns achados, corrija só esses.
    Grave o relatório do §4 da skill no caminho que o prompt indicar
