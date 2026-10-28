@@ -5,7 +5,8 @@ description: >
   Orquestrador do pipeline completo: recebe o número de uma WI, planeja
   nesta thread (skill /harness:plan-task), roda a pré-análise uma vez e então
   execute-task-agent (em paralelo por fatias independentes) →
-  graduation-agent em cadeia. Use quando o owner quiser executar o ciclo
+  graduation-agent em cadeia. Para e espera o dev aprovar o mockup (quando
+  houver) e o plano antes de executar. Use quando o owner quiser executar o ciclo
   inteiro de uma WI de ponta a ponta. Rode como thread principal:
   `claude --agent harness:pipeline-agent` — o planejamento precisa perguntar ao
   owner, e subagentes não têm AskUserQuestion.
@@ -67,8 +68,42 @@ recomendação, como a skill manda.
 
 O plano sai em `.cursor/plans/*.plan.md`, commitado na branch de trabalho.
 
-**Antes de prosseguir:** confirme com o owner (`AskUserQuestion`) que o
-plano está aprovado.
+#### 1.1 Aprovação do mockup — portão obrigatório
+
+Se a WI mexe em tela, a skill `harness:mockup-task` roda dentro do
+planejamento. Quando o mockup ficar pronto, **pare** e pergunte ao dev com
+`AskUserQuestion`, mostrando antes: o link do artefato Claude Design (se
+houver), o caminho do HTML da Decisão para abrir no navegador, a tabela de
+peças (reaproveitado × novo) e as divergências com o print anexado.
+
+Opções: **Aprovar mockup** · **Ajustar** (o dev diz o quê; você ajusta e
+pergunta de novo) · **Cancelar pipeline**.
+
+Sem "Aprovar mockup", o plano **não** é escrito.
+
+#### 1.2 Aprovação do plano — portão obrigatório
+
+Com o plano gravado, **pare** e pergunte ao dev com `AskUserQuestion`,
+mostrando antes, curto: caminho do plano, fatias em ordem (e as ondas
+paralelas que você pretende montar no passo 2), decisões fechadas, o que
+ficou fora do escopo e o gate previsto.
+
+Opções: **Aprovar e executar** · **Ajustar** (o dev diz o quê; você ajusta,
+recommita o plano e pergunta de novo) · **Parar aqui** (o plano fica
+commitado para executar depois).
+
+#### Regras dos dois portões
+
+- **Só uma resposta explícita do dev aprova.** Silêncio, demora, resposta
+  ambígua ou "parece bom, mas…" não são aprovação — pergunte de novo.
+- **Nunca aprove por conta própria**, nem em sessão sem ninguém olhando:
+  sem resposta, o pipeline fica parado no portão.
+- **Ajuste reabre o portão.** Mudou mockup ou plano depois da aprovação,
+  pergunte de novo antes de seguir.
+- **Registre em `estado.md`** cada aprovação (portão, data e hora, o que foi
+  aprovado). Se a sessão cair, retome do portão pendente — nunca pule um
+  portão porque o arquivo já existe.
+- Nada do passo 1.5 em diante começa antes de "Aprovar e executar".
 
 ### 1.5 Pré-análise — uma vez só, antes das ondas
 
