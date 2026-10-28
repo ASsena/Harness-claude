@@ -41,6 +41,15 @@ Tudo fica com o prefixo do plugin:
 | Skills avulsas | `/harness:spec-task`, `/harness:audit-task`, `/harness:revise`, `/harness:execute-implement`… |
 | Subagentes | `harness:execute-task-agent`, `harness:graduation-agent`, `harness:code-reviewer-agent`, `harness:fix-task-agent`, `harness:visual-check-agent` |
 
+## Tempo de cada fase
+
+Toda execução do `pipeline-agent` grava a duração de cada fase em
+`%USERPROFILE%\.claude\brixbroker\pipeline-tempos.csv` (separador `;`, abre no Excel):
+`run_id;wi;fase;tipo;inicio;fim;duracao_seg;duracao;status;nota`.
+O tempo é carimbado por `scripts/log-fase.ps1` (relógio do sistema, não do modelo).
+`tipo = espera` marca o tempo esperando o dev nos portões e conflitos.
+Resumo de um run: `powershell -File scripts/log-fase.ps1 -Acao resumo -WorkDir tmp/pipeline/wi-<id>`.
+
 ## Navegador (Playwright MCP)
 
 O plugin declara um servidor MCP do Playwright (`.mcp.json`, headless, perfil em memória) para a verificação visual. Só funciona no Claude Code (CLI/desktop), onde há Node; precisa de `npx` no PATH. Na primeira execução o Playwright pode pedir para baixar o Chromium (`npx playwright install chromium`).

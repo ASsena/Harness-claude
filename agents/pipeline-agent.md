@@ -26,6 +26,44 @@ principal (`claude --agent harness:pipeline-agent`)". Não continue sem poder pe
 Profundidade de agentes: você (thread principal) → `harness:graduation-agent` (1) →
 `harness:code-reviewer-agent`/`harness:fix-task-agent` (2). Fica dentro do limite padrão.
 
+## Cronômetro das fases
+
+Cada execução registra a duração de cada fase em
+`%USERPROFILE%\.claude\brixbroker\pipeline-tempos.csv` (separador `;`, abre
+direto no Excel). **Quem carimba a hora é o script, nunca você** — não
+escreva horários nem durações de cabeça.
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/log-fase.ps1" -Acao inicio -WorkDir tmp/pipeline/wi-<id> -Fase <fase> [-Tipo espera]
+powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/log-fase.ps1" -Acao fim    -WorkDir tmp/pipeline/wi-<id> -Fase <fase> [-Status ok|falha|escalado|cancelado] [-Nota "<texto curto>"]
+```
+
+| Fase | Tipo | Abre | Fecha |
+|---|---|---|---|
+| `pipeline` | trabalho | logo depois de criar a pasta (0.1), com `-Wi <id>` | no relatório final (6) |
+| `planejamento` | trabalho | início do 1 | plano gravado |
+| `mockup` | trabalho | início do `mockup-task` | mockup pronto para o portão |
+| `portao-mockup` | **espera** | pergunta do 1.1 | resposta do dev (`-Nota` aprovado/ajuste) |
+| `portao-plano` | **espera** | pergunta do 1.2 | resposta do dev |
+| `pre-analise` | trabalho | início do 1.5 | fim do 1.5 |
+| `implementacao-onda-<n>` | trabalho | antes de disparar a onda | todos os agentes da onda terminaram |
+| `reconciliacao` | trabalho | início do 4 | fim do 4 |
+| `graduacao` | trabalho | antes de invocar o graduation-agent | ele devolveu o resultado |
+| `conflito-M1` | **espera** | primeira pergunta de conflito ao dev | última resposta |
+
+Fases aninham (o `portao-plano` acontece dentro do `planejamento`); o
+script trata isso. Tempo de **espera** é tempo seu respondendo, separado do
+tempo de trabalho no resumo.
+
+**Fim do pipeline, por qualquer motivo:** feche as fases ainda abertas com
+`-Acao fechar-abertas -Status <ok|cancelado|escalado|falha>` e rode
+`-Acao resumo`; o resumo entra no relatório final. **Retomada** depois de a
+sessão cair: rode `fechar-abertas -Status interrompido` antes de continuar e
+abra uma fase `pipeline` nova com `-Nota "retomada"`.
+
+**O cronômetro nunca bloqueia o pipeline.** Se o script falhar (sem
+PowerShell, CSV aberto no Excel), avise o dev uma vez e siga sem registrar.
+
 ## Instruções
 
 ### 0. Liberar `platform/**` — só local, nunca sobe
@@ -64,7 +102,8 @@ dia e o merge do fim ter menos conflito:
 
 ### 0.1 Pasta de trabalho
 
-Crie `tmp/pipeline/wi-<id>/`. Todo o estado do pipeline vive ali, e os
+Crie `tmp/pipeline/wi-<id>/` e abra a fase `pipeline` do cronômetro
+(`-Wi <id>`). Todo o estado do pipeline vive ali, e os
 agentes trocam **caminhos de arquivo**, não relatórios colados no prompt.
 Confirme que a pasta está ignorada pelo git
 (`git check-ignore -q tmp/pipeline/wi-<id>/x`); se não estiver, pare e
@@ -220,7 +259,8 @@ Se encontrar problemas, corrija-os antes de seguir para a graduação.
 ### 5. Graduar
 
 Invoque o `harness:graduation-agent` passando o caminho do plano e a pasta de
-trabalho `tmp/pipeline/wi-<id>/` (com `preflight.md` e `impl-*.md`).
+trabalho `tmp/pipeline/wi-<id>/` (com `preflight.md` e `impl-*.md`). Ele
+cronometra as próprias subfases na mesma pasta, então elas caem no mesmo run.
 
 Ele vai conduzir o ciclo review ↔ fix → integração da master → gate → commit.
 
@@ -269,6 +309,9 @@ Quando o graduation-agent terminar, reporte ao owner:
 - **Rodadas de review e tentativas de gate:** quantas foram necessárias
 - **SHA do commit:** se houve commit
 - **Sugestões pendentes:** achados 🔵 para decisão futura
+- **Tempos:** feche a fase `pipeline` (e o que ainda estiver aberto) e cole
+  a saída do `-Acao resumo` — duração por fase, total, tempo esperando você
+  e tempo trabalhando — com o caminho do CSV
 
 ## Regras
 

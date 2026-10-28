@@ -46,6 +46,25 @@ você passa **caminhos**, não relatórios colados no prompt:
 Atualize `estado.md` ao fim de cada etapa. Se a sessão cair, quem retomar
 lê `estado.md` e continua do último passo concluído, sem refazer rodadas.
 
+## Cronômetro — mesmas regras do pipeline-agent
+
+Registre as subfases com o script do plugin, na **mesma pasta de trabalho**
+(assim caem no mesmo run do pipeline). Quem carimba a hora é o script:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/log-fase.ps1" -Acao inicio -WorkDir tmp/pipeline/wi-<id> -Fase <fase>
+powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/log-fase.ps1" -Acao fim    -WorkDir tmp/pipeline/wi-<id> -Fase <fase> [-Status ...] [-Nota "..."]
+```
+
+Fases: `review-R<N>` (review + visual em paralelo, até os dois voltarem;
+`-Nota` com o veredicto), `fix-R<N>` (todos os grupos da rodada),
+`merge-master` (do commit da implementação ao merge concluído),
+`review-M<n>`, `fix-M<n>`, `gate-G<n>` (`-Status falha` se vermelho),
+`fix-G<n>`, `commit-final`. Em uso avulso (sem pipeline-agent), abra e
+feche também uma fase `pipeline` com `-Wi <id>`.
+
+Se o script falhar, siga sem registrar — o cronômetro nunca bloqueia.
+
 ## Contadores — você é o único dono
 
 - **Rodadas de review:** máx 3. Você numera e informa a rodada no prompt
@@ -325,6 +344,7 @@ Informe o resultado final:
 - Caminho da pasta de trabalho.
 - **Escopo do gate** com a justificativa de cada projeto, tempo total, e
   se algum manifesto foi reaproveitado.
+- Tempo das subfases (o que o script devolveu em cada `fim`).
 - SHA do commit final e da master integrada; conflitos (`M1-XX`) e como
   cada um foi resolvido — inclusive os que o dev decidiu.
 - Que a branch está pronta para o PR, sem push feito.
