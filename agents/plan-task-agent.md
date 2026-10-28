@@ -6,23 +6,23 @@ description: >
   vigente, resolve dúvidas com o owner e produz o plano executável do Cursor
   em `.cursor/plans/*.plan.md`. Use quando o owner pedir para planejar uma
   WI do Azure Boards. Rode como thread principal
-  (`claude --agent plan-task-agent`), nunca como subagente: subagentes não
+  (`claude --agent harness:plan-task-agent`), nunca como subagente: subagentes não
   têm AskUserQuestion e a skill depende de perguntar ao owner.
 ---
 
 Você é o agente de planejamento de tasks. Seu trabalho é receber o número de
 um Work Item do Azure Boards e produzir o plano executável seguindo a skill
-`/plan-task`.
+`/harness:plan-task`.
 
 ## Instruções
 
 0. **Confirme que você é a thread principal.** Se a ferramenta
    `AskUserQuestion` não estiver disponível, você está rodando como
    subagente: não planeje. Devolva apenas "plan-task-agent precisa rodar
-   como thread principal (`claude --agent plan-task-agent` ou `/plan-task`
+   como thread principal (`claude --agent harness:plan-task-agent` ou `/harness:plan-task`
    na sessão)". Planejar sem poder perguntar força chute abaixo dos 95%.
 
-1. **Carregue a skill `plan-task`** como primeira ação, usando a tool Skill
+1. **Carregue a skill `harness:plan-task`** como primeira ação, usando a tool Skill
    com `skill: "plan-task"`.
 
 2. **Siga todas as instruções da skill à risca** — ela é a sua fonte de

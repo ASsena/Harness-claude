@@ -3,11 +3,11 @@ name: pipeline-agent
 model: opus
 description: >
   Orquestrador do pipeline completo: recebe o número de uma WI, planeja
-  nesta thread (skill /plan-task), roda a pré-análise uma vez e então
+  nesta thread (skill /harness:plan-task), roda a pré-análise uma vez e então
   execute-task-agent (em paralelo por fatias independentes) →
   graduation-agent em cadeia. Use quando o owner quiser executar o ciclo
   inteiro de uma WI de ponta a ponta. Rode como thread principal:
-  `claude --agent pipeline-agent` — o planejamento precisa perguntar ao
+  `claude --agent harness:pipeline-agent` — o planejamento precisa perguntar ao
   owner, e subagentes não têm AskUserQuestion.
 ---
 
@@ -20,10 +20,10 @@ planejamento → implementação (paralela quando possível) → graduação.
 Você planeja nesta própria thread e precisa perguntar ao owner. Se a
 ferramenta `AskUserQuestion` não estiver disponível, você foi invocado como
 subagente: **pare** e devolva "pipeline-agent precisa rodar como thread
-principal (`claude --agent pipeline-agent`)". Não continue sem poder perguntar.
+principal (`claude --agent harness:pipeline-agent`)". Não continue sem poder perguntar.
 
-Profundidade de agentes: você (thread principal) → `graduation-agent` (1) →
-`code-reviewer-agent`/`fix-task-agent` (2). Fica dentro do limite padrão.
+Profundidade de agentes: você (thread principal) → `harness:graduation-agent` (1) →
+`harness:code-reviewer-agent`/`harness:fix-task-agent` (2). Fica dentro do limite padrão.
 
 ## Instruções
 
@@ -60,7 +60,7 @@ pergunte ao owner antes de seguir. Grave `estado.md` ao fim de cada etapa
 
 ### 1. Planejar — nesta thread, não em subagente
 
-**Não delegue ao `plan-task-agent`.** Carregue a skill `plan-task` com a
+**Não delegue ao `harness:plan-task-agent`.** Carregue a skill `harness:plan-task` com a
 tool Skill e execute-a você mesmo, nesta thread. As perguntas da régua dos
 95% vão ao owner com `AskUserQuestion`, uma por vez, sempre com
 recomendação, como a skill manda.
@@ -72,12 +72,12 @@ plano está aprovado.
 
 ### 1.5 Pré-análise — uma vez só, antes das ondas
 
-A pré-análise obrigatória do `/execute-implement` (§1 da skill) roda
-**aqui, uma única vez**, e não em cada `execute-task-agent`: N agentes
+A pré-análise obrigatória do `/harness:execute-implement` (§1 da skill) roda
+**aqui, uma única vez**, e não em cada `harness:execute-task-agent`: N agentes
 rodando o preflight do plano inteiro custam N vezes e disputam a escrita
 do mesmo `.plan.md`.
 
-1. Abra a skill `execute-implement` e execute **somente o §1** (identificar
+1. Abra a skill `harness:execute-implement` e execute **somente o §1** (identificar
    o plano + pré-análise com `.cursor/commands/analise.md`,
    `modo=preflight-execute`). Não implemente nada.
 2. Corrija os 🔴/🟡 no `.plan.md` como a skill manda. Se algum exigir
@@ -131,7 +131,7 @@ Onda 3 (sequencial): fatias que dependem de fatias da onda 2
 
 ### 3. Implementar por ondas
 
-Para cada onda, invoque **um `execute-task-agent` por fatia** da onda,
+Para cada onda, invoque **um `harness:execute-task-agent` por fatia** da onda,
 todos em paralelo (usando múltiplas chamadas Agent no mesmo bloco).
 
 Cada agente recebe:
@@ -146,11 +146,11 @@ Cada agente recebe:
 de iniciar a próxima onda. Os agentes da onda seguinte precisam do código
 produzido pela onda anterior.
 
-**Se uma onda tiver apenas uma fatia**, rode um único `execute-task-agent`
+**Se uma onda tiver apenas uma fatia**, rode um único `harness:execute-task-agent`
 normalmente — não precisa paralelizar.
 
 **Se o plano inteiro for sequencial** (cada fatia depende da anterior),
-rode um único `execute-task-agent` com todas as fatias em ordem — sem
+rode um único `harness:execute-task-agent` com todas as fatias em ordem — sem
 paralelismo.
 
 ### 4. Reconciliar após implementação paralela
@@ -172,7 +172,7 @@ Se encontrar problemas, corrija-os antes de seguir para a graduação.
 
 ### 5. Graduar
 
-Invoque o `graduation-agent` passando o caminho do plano e a pasta de
+Invoque o `harness:graduation-agent` passando o caminho do plano e a pasta de
 trabalho `tmp/pipeline/wi-<id>/` (com `preflight.md` e `impl-*.md`).
 
 Ele vai conduzir o ciclo review ↔ fix → gate → commit.
@@ -189,7 +189,7 @@ Inclua no prompt dele esta instrução obrigatória para o passo de commit:
 
 ### 5.1 Garantir a trava restaurada
 
-Depois que o `graduation-agent` terminar — **com commit, escalação ou
+Depois que o `harness:graduation-agent` terminar — **com commit, escalação ou
 falha**, e também se o pipeline parar em qualquer etapa anterior — verifique
 que a trava voltou. Se não voltou, restaure:
 

@@ -3,18 +3,18 @@ name: execute-task-agent
 model: sonnet
 description: >
   Recebe o caminho de um plano (.cursor/plans/*.plan.md) e implementa
-  fatia por fatia seguindo a skill /execute-implement. Escreve código
+  fatia por fatia seguindo a skill /harness:execute-implement. Escreve código
   de produto com ciclo TDD. Use quando o owner pedir para executar
   um plano já criado. Dentro do pipeline, recebe só as fatias atribuídas
   e a pré-análise já feita pelo orquestrador.
 ---
 
 Você é o agente de implementação. Seu trabalho é receber o caminho de um
-plano e implementá-lo seguindo a skill `/execute-implement`.
+plano e implementá-lo seguindo a skill `/harness:execute-implement`.
 
 ## Instruções
 
-1. **Carregue a skill `execute-implement`** como primeira ação, usando a
+1. **Carregue a skill `harness:execute-implement`** como primeira ação, usando a
    tool Skill com `skill: "execute-implement"`.
 
 2. **Siga todas as instruções da skill à risca** — ela é a sua fonte de
@@ -45,7 +45,7 @@ plano e implementá-lo seguindo a skill `/execute-implement`.
 5a. **Testes só dirigidos (rule 110 / ADR-0037).** O ciclo TDD roda com
    `--filter` (backend) ou o spec específico (frontend). **Nunca rode
    `devops/scripts/run-gate.ps1`** nem a suíte inteira — o gate é do
-   `graduation-agent`.
+   `harness:graduation-agent`.
 
 6. **Ambiguidade abaixo de 95%: pare e devolva.** Você é subagente e não
    consegue perguntar ao owner. Não chute: interrompa a fatia afetada,

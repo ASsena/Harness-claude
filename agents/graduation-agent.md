@@ -44,7 +44,7 @@ lê `estado.md` e continua do último passo concluído, sem refazer rodadas.
 ## Contadores — você é o único dono
 
 - **Rodadas de review:** máx 3. Você numera e informa a rodada no prompt
-  do `code-reviewer-agent`; ele não conta sozinho.
+  do `harness:code-reviewer-agent`; ele não conta sozinho.
 - **Tentativas de gate:** máx 2 (`G1`, `G2`). Fix e revisão vindos do gate
   usam a numeração `G<n>` e **não consomem** as 3 rodadas de review.
 - Estourou qualquer contador → escale ao owner. Não abra rodada extra.
@@ -53,7 +53,7 @@ lê `estado.md` e continua do último passo concluído, sem refazer rodadas.
 
 ### 1. Rodar o review
 
-Invoque o `code-reviewer-agent` com: caminho do plano, pasta de trabalho
+Invoque o `harness:code-reviewer-agent` com: caminho do plano, pasta de trabalho
 e **"rodada 1"**. Ele lê `preflight.md` e `impl-*.md` e grava
 `review-R1.md`, com veredicto e achados classificados por ID.
 
@@ -84,11 +84,11 @@ Sequencial:         R1-06 (depende de R1-02 e R1-04)
 - Dependência não clara → trate como dependente (sequencial).
 - Achados no **mesmo arquivo** nunca rodam em paralelo.
 - Registration de DI e consumo desse serviço são dependentes.
-- Com apenas 1 ou 2 achados, rode um único `fix-task-agent` — não vale paralelizar.
+- Com apenas 1 ou 2 achados, rode um único `harness:fix-task-agent` — não vale paralelizar.
 
 ### 3. Ciclo review ↔ fix (máx 3 rodadas) — só testes dirigidos
 
-**Se houver grupos paralelos:** invoque **um `fix-task-agent` por grupo**,
+**Se houver grupos paralelos:** invoque **um `harness:fix-task-agent` por grupo**,
 todos em paralelo (múltiplas chamadas Agent no mesmo bloco). Cada agente
 recebe:
 - O **caminho** do relatório (`review-R<N>.md`) e o caminho de saída
@@ -106,13 +106,13 @@ grupo terminar.
 **Entre grupos:** espere todos os agentes do grupo atual terminarem antes
 de iniciar o próximo.
 
-**Se todos os achados forem dependentes:** rode um único `fix-task-agent`
+**Se todos os achados forem dependentes:** rode um único `harness:fix-task-agent`
 com todos os achados em ordem.
 
 **Após todos os fixes da rodada:**
 1. **Reconcilie** — verifique se dois agentes alteraram o mesmo arquivo
    por engano. Se sim, resolva ou escale.
-2. Invoque o `code-reviewer-agent` informando **"rodada N+1"** e a pasta
+2. Invoque o `harness:code-reviewer-agent` informando **"rodada N+1"** e a pasta
    de trabalho (ele lê `review-R<N>.md` e os `fix-R<N>-*.md`).
 
 **Veredictos:**
@@ -192,9 +192,9 @@ $splat = @{
 - **Gate passou:** siga para o commit (passo 5).
 - **Gate falhou (tentativa G<n>):** grave `gate-G<n>.md` com os testes
   vermelhos do manifesto/TRX, cada um com ID `G<n>-XX`, e invoque o
-  `fix-task-agent` apontando esse arquivo. O fix itera com `--filter`
+  `harness:fix-task-agent` apontando esse arquivo. O fix itera com `--filter`
   **nos testes que falharam** até ficarem verdes. Depois, revisão da
-  correção (`code-reviewer-agent` com `review-G<n>.md`, sem consumir
+  correção (`harness:code-reviewer-agent` com `review-G<n>.md`, sem consumir
   rodada de review) e então **gate de novo, no mesmo escopo, inteiro**
   (a árvore mudou; o manifesto anterior não vale mais).
   **Máximo 2 tentativas de gate.** Se o G2 falhar, ou se a falha não for

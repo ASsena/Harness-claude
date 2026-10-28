@@ -1,0 +1,14 @@
+{
+  "name": "assena",
+  "description": "Agentes e skills de desenvolvimento do Arthur Sena.",
+  "owner": {
+    "name": "Arthur Sena"
+  },
+  "plugins": [
+    {
+      "name": "harness",
+      "source": "./",
+      "description": "Agentes e skills do pipeline plan → implement → review ↔ fix → graduate."
+    }
+  ]
+}

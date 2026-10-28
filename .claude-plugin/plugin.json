@@ -1,0 +1,10 @@
+{
+  "name": "harness",
+  "displayName": "Harness",
+  "description": "Pipeline de desenvolvimento do Arthur: plan-task → execute-implement → execute-review ↔ execute-fix → gate/commit, mais spec-task, audit-task e revise.",
+  "author": {
+    "name": "Arthur Sena"
+  },
+  "repository": "https://github.com/ASsena/Harness-claude",
+  "keywords": ["pipeline", "azure-boards", "tdd", "code-review"]
+}

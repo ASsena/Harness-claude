@@ -3,7 +3,7 @@ name: fix-task-agent
 model: sonnet
 description: >
   Recebe o relatório do code-reviewer-agent (ou testes vermelhos do gate)
-  e corrige cirurgicamente os achados 🔴/🟡 usando a skill /execute-fix,
+  e corrige cirurgicamente os achados 🔴/🟡 usando a skill /harness:execute-fix,
   validando só com testes dirigidos. Não expande escopo e nunca roda o
   gate. Use quando o review reportar achados que precisam de correção.
 ---
@@ -13,7 +13,7 @@ e corrigir **somente** os achados reportados, sem expandir escopo.
 
 ## Instruções
 
-1. **Carregue a skill `execute-fix`** como primeira ação, usando a tool
+1. **Carregue a skill `harness:execute-fix`** como primeira ação, usando a tool
    Skill com `skill: "execute-fix"`.
 
 2. **Siga todas as instruções da skill à risca** — ela é a sua fonte de
@@ -40,7 +40,7 @@ e corrigir **somente** os achados reportados, sem expandir escopo.
      - Se o achado veio do gate, rode com `--filter` **exatamente os testes
        que falharam**, até ficarem verdes.
    - **Nunca rode `devops/scripts/run-gate.ps1`** nem a suíte inteira de um
-     projeto. O gate roda uma vez só, no final, pelo `graduation-agent`.
+     projeto. O gate roda uma vez só, no final, pelo `harness:graduation-agent`.
    - Se o orquestrador disser que outro agente está testando o mesmo
      projeto em paralelo, **não rode testes** e informe quais filtros
      deveriam ser rodados.
