@@ -1,6 +1,6 @@
 ---
 name: mockup-task
-description: Gera o mockup das mudanças visuais de um Work Item com os componentes broker-* que já existem e o tema Segurus do design-system, no formato de import da casa (platform/frontend/_imports/claude-design/), e trava até o dev aprovar. Chamada pelo /plan-task quando a WI mexe em tela; também roda avulsa com "/mockup-task" seguido do número da WI.
+description: Gera o mockup das mudanças visuais de um Work Item a partir da captura da tela real renderizada (Playwright), reaproveitando instâncias reais dos componentes broker-* e o tema Segurus, no formato de import da casa (platform/frontend/_imports/claude-design/), e trava até o dev aprovar. Chamada pelo /plan-task quando a WI mexe em tela; também roda avulsa com "/mockup-task" seguido do número da WI.
 argument-hint: "nº do Work Item do Azure Boards (ex.: 2538)"
 ---
 
@@ -46,44 +46,78 @@ Princípio do `CLAUDE.md`: apontar para a fonte, nunca duplicá-la. Não existe 
 
 ---
 
-## 3. Escolher as peças — reaproveitar antes de inventar
+## 3. Capturar a tela real — a base do mockup
 
-Abra a tela atual que a WI altera (ou a mais parecida, se for nova) e liste o que ela já usa.
+**O mockup parte da tela renderizada, nunca do código-fonte.** Um `broker-*` só vira o que o dev vê depois que o Angular aplica o template, o SCSS encapsulado (`_ngcontent-…`), os internos do Material e o tema. Ler o `.html`/`.scss` do componente e redesenhar dá algo "no tema", mas não igual — foi a falha que motivou este passo.
 
-Para cada elemento do pedido, nesta ordem:
+**Subir o app:** mesmo procedimento do `/harness:verify-visual` §3 (reaproveitar o que estiver de pé; senão AppHost + `ng serve`, com log em arquivo, e registrar o que você subiu). Portas e comandos estão em `platform/frontend/README.md`.
 
-1. **`broker-*` ou componente da feature que serve como está** → usa.
-2. **Serve com uma variação que ele já suporta** (input, `density`, modificador) → usa, dizendo qual.
-3. **Quase serve, mas exigiria mudar o componente** → pergunta ao dev (estender × criar), com recomendação e a lista das telas que consomem o componente.
-4. **Nada serve** → componente novo **dentro da feature** (processo do `design-system-evolution.md`), montado só com tokens, e marcado como novo.
+**Capturar** com o script do plugin — ele salva DOM + todo o CSS aplicado + fontes/imagens num HTML que abre sozinho, igual ao app, e um PNG de referência da tela real:
 
-Nunca invente cor, fonte, espaçamento ou raio fora dos tokens. Valor que o tema não tem é pergunta ao dev, não hex solto.
+```
+node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" capturar \
+  --url <url da rota> --out "<import>/original" --nome "<Tela> - base" \
+  --data-dir "${CLAUDE_PLUGIN_DATA}" --viewport 1440x900 \
+  [--esperar "<seletor que indica tela pronta>"] [--antes <passos.mjs>]
+```
+
+- **Login:** na primeira vez (ou com a sessão vencida) **o script abre uma janela do navegador** e espera o dev entrar com o usuário de desenvolvimento. **Avise o dev antes de rodar.** A sessão fica salva no diretório de dados do plugin, fora do repo; o script nunca recebe senha.
+- **`--antes`**: arquivo `export default async (page) => { … }` com os passos para chegar ao estado (abrir aba, aplicar filtro, abrir modal). Grave-o em `tmp/`, não no import.
+- **Largura estreita**: se a tela é responsiva, capture de novo com `--viewport 390x844` e `--nome "<Tela> - base - estreita"`.
+- **Doadores**: componente que a WI precisa e que existe em **outra** tela (ex.: um `broker-select` `compact`) → capture essa tela também (`--nome "doador - <componente>"`). É de lá que sai a marcação real.
+- **Estados reais**: sempre que o app conseguir chegar ao estado (vazio por filtro sem resultado, modal de erro de validação), **capture-o** em vez de desenhá-lo.
+- **Tela nova**: capture a tela mais parecida (mesmo shell, mesmo layout de página) como base.
+- O script devolve `faltando` (recursos que não baixou) e o tamanho dos recursos. Recurso faltando → diga ao dev; não ignore.
+
+**O app não sobe ou a tela não é alcançável?** Pare e escale ao dev. Só monte o mockup sem captura se o dev aceitar — e então marque no `notes.md` e no cabeçalho do HTML: **"sem captura — fidelidade ao app não garantida"**.
 
 ---
 
-## 4. Montar o import
+## 4. Escolher as peças e editar a captura
 
-Estrutura (igual à dos imports existentes):
+Liste o que a tela capturada já usa (pelos seletores `broker-*` e componentes de feature no DOM). Para cada elemento do pedido, nesta ordem:
+
+1. **`broker-*` ou componente da feature que serve como está** → copie o `outerHTML` de **uma instância real** (desta captura ou de um doador), com os atributos `_ngcontent-*`/`_nghost-*` intactos, e troque só texto e estado.
+2. **Serve com uma variação que ele já suporta** (`density`, modificador) → só se houver instância real com essa variação capturada; senão capture uma tela que a tenha.
+3. **Quase serve, mas exigiria mudar o componente** → pergunta ao dev (estender × criar), com recomendação e a lista das telas que consomem o componente.
+4. **Nada serve** → componente novo **dentro da feature** (processo do `design-system-evolution.md`), montado só com as variáveis `--md-*` que já estão no `:root` da captura, e marcado como novo.
+
+Nunca invente cor, fonte, espaçamento ou raio fora dos tokens. Valor que o tema não tem é pergunta ao dev, não hex solto.
+
+**Editar:**
+
+- Copie `"<Tela> - base.html"` para `"<Tela> - Decisão.html"` e **mexa só na região que a WI muda**. O resto da página fica byte a byte como capturado.
+- Peça vinda de doador: além do `outerHTML`, acrescente ao fim do `<style data-captura>` da Decisão o bloco `<style data-captura>` do doador (regras duplicadas não fazem mal; regras faltando quebram o visual).
+- Marque cada bloco com atributos, sem mudar layout: `data-componente="<seletor broker-* ou caminho>"`, `data-variacao="..."`, `data-novo="<nome proposto>"`. É o que o plano e o `/verify-visual` leem.
+- Anotações: acrescente no fim do `<body>` um botão fixo "mostrar anotações" (`position: fixed`, escondido por padrão no layout) que contorna cada bloco com *reaproveitado: X* ou *novo: Y*. Nada além disso é injetado.
+- **Estados**: um arquivo por estado — `"<Tela> - Decisão.html"` (padrão), `"<Tela> - Decisão - vazio.html"`, `"… - carregando.html"`, `"… - erro.html"`, e os de validação. Capturado de verdade quando possível (§3); editado a partir da Decisão quando não. Estado que a WI não definiu é pergunta ao dev.
+- Dados: troque os dados reais do seed por fictícios plausíveis com o **vocabulário canônico** (`CLAUDE.md` §5). Nada de dado real de cliente no import.
+- Cabeçalho em comentário HTML: WI, data, status (`rascunho` / `aprovado em <data>`), URL e data da captura.
+
+**Conferir a fidelidade antes de mostrar** — a parte que a WI não muda tem de ficar idêntica à tela real:
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" screenshot --arquivo "<import>/original/<Tela> - Decisão.html" --out tmp/mockup-decisao.png --viewport 1440x900 --data-dir "${CLAUDE_PLUGIN_DATA}"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" comparar --a "<import>/original/<Tela> - base.referencia.png" --b tmp/mockup-decisao.png --ignorar "<x,y,w,h da região alterada>[;…]" --out tmp/mockup-diff.png --data-dir "${CLAUDE_PLUGIN_DATA}"
+```
+
+`percentual` acima de **0,5%** fora da região ignorada = você alterou algo que a WI não pede (ou um recurso faltou). Abra o `mockup-diff.png`, corrija e confira de novo. Não apresente ao dev antes de passar.
+
+### Estrutura do import
 
 ```
 platform/frontend/_imports/claude-design/wi-<id>-<slug>/<AAAA-MM-DD>/
   notes.md
   original/
-    <Tela> - Decisão.html        ← solução final, com todos os estados
-    <Tela> - Variantes.html      ← só se houve rodadas de alternativas
+    <Tela> - base.html                 ← captura da tela atual, intocada
+    <Tela> - base.referencia.png       ← print da tela real
+    <Tela> - Decisão.html              ← solução final, estado padrão
+    <Tela> - Decisão - <estado>.html   ← um por estado
+    doador - <componente>.html         ← só se usou doador
+    assets/                            ← fontes e imagens que a captura baixou
 ```
 
-**Escrita em `platform/**` está travada** por `.claude/settings.json`. O dev libera a trava quando chama um agente que usa esta skill. Se o `Write` for negado, **pare e peça ao dev para liberar** — nunca contorne por shell (`CLAUDE.md` §2).
-
-**O HTML da Decisão:**
-
-- Carregue os tokens do tema Segurus: copie para um `<style>` as variáveis de `theming/` que a tela usa, com comentário apontando o arquivo de origem.
-- Reproduza a **marcação e as classes reais** dos componentes reaproveitados, para ficar idêntico ao que o app renderiza.
-- Marque cada bloco: `data-componente="<seletor broker-* ou caminho do componente>"`, `data-variacao="..."` quando houver, `data-novo="<nome proposto>"` quando novo. É o que o plano e a verificação visual (`/verify-visual`) leem.
-- **Estados** alternáveis por abas no topo: padrão, vazio, carregando, erro, e os de validação se houver formulário. Estado que a WI não definiu é pergunta ao dev.
-- Desktop e, quando a tela for responsiva, a largura estreita.
-- Dados fictícios plausíveis, com o **vocabulário canônico** (`CLAUDE.md` §5). Nada de dado real.
-- Botão "mostrar anotações" que destaca cada bloco com *reaproveitado: X* ou *novo: Y*.
+**Escrita em `platform/**` está travada** por `.claude/settings.json`. O dev libera a trava quando chama um agente que usa esta skill. Se o `Write` for negado, **pare e peça ao dev para liberar** — nunca contorne por shell (`CLAUDE.md` §2). O script de captura grava direto no `--out`; se a trava estiver ativa, capture em `tmp/mockup/` e copie para o import depois que o dev liberar.
 
 **O `notes.md`**, no formato dos imports existentes:
 
@@ -92,6 +126,7 @@ platform/frontend/_imports/claude-design/wi-<id>-<slug>/<AAAA-MM-DD>/
 
 Data: <AAAA-MM-DD>
 Componente(s): `<caminho>` …
+Captura: <url> em <data>, <viewport> (base intocada em `original/<Tela> - base.html`)
 
 ## Decisões
 - **D1 — <elemento> → <opção escolhida>**
@@ -104,15 +139,19 @@ Componente(s): `<caminho>` …
 - <o que pode truncar/quebrar e foi aceito>
 
 ## Peças
-| Elemento | Reaproveitado | Variação | Novo |
+| Elemento | Reaproveitado (instância de onde veio) | Variação | Novo |
 
 ## Arquivos em original/
-- `<Tela> - Decisão.html`: solução final, <N> estados.
+- `<Tela> - Decisão.html`: solução final; estados em `<Tela> - Decisão - <estado>.html`.
+- Fidelidade fora da região alterada: <percentual do comparar>.
 ```
 
 Cada decisão com **valor verificável** (px, token, copy, ordem). É isso que o `/verify-visual` confere na tela implementada; decisão vaga não é verificável.
 
-**Artefato Claude Design para revisão:** se a sessão oferecer o tipo **Design** no Artifact (app Claude), crie um a partir dele com o mesmo conteúdo e passe o link ao dev; havendo Design System publicado como artefato e marcado como padrão, use-o. Ajuste pedido no canvas volta para o HTML do import antes da aprovação. No CLI, siga só com o HTML (o dev abre no navegador).
+### Publicar para revisão
+
+- **Com a ferramenta Artifact disponível** (app Claude): publique **o próprio** `"<Tela> - Decisão.html"` como artefato, com os outros estados e a pasta `assets/` em `files` (mesmos caminhos relativos). **Não redesenhe nada:** o artefato é a captura editada — sem trocar fonte, cor, espaçamento, sem tema escuro, sem "melhorar". Se a ferramenta exigir, acrescente só um `<title>`. Ajuste pedido pelo dev vai **no arquivo do import** e o artefato é republicado a partir dele.
+- **Sem a ferramenta** (Claude Code CLI): o dev abre o arquivo no navegador — ele funciona direto do disco, sem servidor.
 
 ---
 
@@ -120,7 +159,8 @@ Cada decisão com **valor verificável** (px, token, copy, ordem). É isso que o
 
 Apresente ao dev, curto:
 
-- o link do artefato (quando houver) e o caminho do HTML da Decisão;
+- o link do artefato (quando houver) e o caminho do HTML da Decisão (e dos estados);
+- o percentual de fidelidade do `comparar` fora da região alterada;
 - a tabela de peças;
 - divergências entre o print anexado e o design system, e qual lado o mockup seguiu;
 - o que foi decidido por ser fato do repo, e o que ainda é pergunta.

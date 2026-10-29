@@ -27,7 +27,7 @@ Uma linha por coisa verificável:
 |---|---|
 | Cada decisão `D<n>` | posição, ordem, tamanho (px), token de cor (com o valor), tipografia, gap, copy exata, aria |
 | Cada `data-componente` / `data-novo` do HTML da Decisão | o bloco existe na tela, na mesma região, com o componente decidido |
-| Cada estado do mockup | padrão, vazio, carregando, erro, validação |
+| Cada estado do mockup | padrão, vazio, carregando, erro, validação (um arquivo `… - Decisão - <estado>.html` por estado) |
 | Larguras | desktop (1440×900) e, se o mockup tiver, a estreita (390×844) |
 
 Para cada item, diga **como** verificar: estilo computado, presença no DOM, texto, ou comparação visual. Item que nenhuma fonte define com valor não é verificável — registre como tal, não invente o gabarito. **"Colisões aceitas" do `notes.md` não são achados.**
@@ -66,7 +66,7 @@ Ferramentas do Playwright MCP do plugin (`mcp__plugin_harness_playwright__*`; se
 
 Para cada largura × estado:
 
-1. **Mockup:** abra o HTML da Decisão (`http://127.0.0.1:4499/original/...`), selecione a aba do estado, capture `mock-<estado>-<largura>.png`.
+1. **Mockup:** abra o HTML do estado (`http://127.0.0.1:4499/original/<Tela> - Decisão[ - <estado>].html`; imports antigos podem ter abas no topo em vez de um arquivo por estado), capture `mock-<estado>-<largura>.png`.
 2. **App:** navegue até a rota da tela, chegue ao estado, capture `app-<estado>-<largura>.png`.
 
 Chegar aos estados:
@@ -86,6 +86,7 @@ Dados fictícios do mockup nunca batem com os do app: **diferença de dado não 
 - **Estrutura:** cada `data-componente` tem o componente correspondente na região certa da tela (ex.: `browser_evaluate` com `querySelector('broker-select')` dentro do contêiner da barra de filtros), na ordem decidida.
 - **Valores:** `getComputedStyle` do elemento — largura, altura, `font-size`, `font-weight`, `color`, `gap`, `padding`. Token: resolva com `getComputedStyle(document.documentElement).getPropertyValue('--md-…')` e compare o valor final. Tolerância de 1px; cor normalizada em `rgb()`.
 - **Copy:** rótulos, títulos, mensagens de vazio e erro — texto exato da spec.
+- **Fora da região que a WI muda**, a tela tem de seguir igual: compare a captura do app com o `"<Tela> - base.referencia.png"` do import usando `node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" comparar --a … --b … --ignorar "<região alterada>" --data-dir "${CLAUDE_PLUGIN_DATA}"`. Diferença ali (que não seja dado) é regressão: achado 🟡, ou 🔴 se quebrou layout.
 - **Imagem:** olhe as duas capturas lado a lado para alinhamento, sobreposição, truncamento e quebra de linha que as medições não pegam.
 
 Rotule cada item como **`[visto]`** (observado no navegador, com evidência) ou **`[raciocinado]`**. **Achado só nasce de `[visto]`.**

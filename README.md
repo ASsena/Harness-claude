@@ -64,6 +64,14 @@ O tempo é carimbado por `scripts/log-fase.ps1` (relógio do sistema, não do mo
 `tipo = espera` marca o tempo esperando o dev nos portões e conflitos.
 Resumo de um run: `powershell -File scripts/log-fase.ps1 -Acao resumo -WorkDir tmp/pipeline/wi-<id>`.
 
+## Captura da tela real (mockups)
+
+O `mockup-task` parte da tela **renderizada** do app, não do código: `scripts/capturar-tela.mjs` salva DOM + todo o CSS aplicado (inclusive o encapsulado do Angular e o do Material) + fontes num HTML que abre sozinho, idêntico ao app, e o mockup é a captura editada só na região da WI. `comparar` mede quanto o resto da tela mudou (alvo: ≤ 0,5%).
+
+- Usa o Edge ou o Chrome instalados; dependências (`playwright-core`, `pngjs`, `pixelmatch`) vão para o diretório de dados do plugin na primeira execução.
+- Login: na primeira captura abre uma janela para você entrar com o usuário de dev; a sessão fica salva fora do repo.
+- No app Claude, o mesmo arquivo é publicado como artefato para revisão — sem redesenho.
+
 ## Navegador (Playwright MCP)
 
 O plugin declara um servidor MCP do Playwright (`.mcp.json`, headless, perfil em memória) para a verificação visual. Só funciona no Claude Code (CLI/desktop), onde há Node; precisa de `npx` no PATH. Na primeira execução o Playwright pode pedir para baixar o Chromium (`npx playwright install chromium`).
