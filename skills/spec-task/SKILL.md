@@ -7,9 +7,9 @@ disable-model-invocation: true
 
 Ajuda o owner a especificar uma task **para um desenvolvedor implementar por conta própria** — diferente de um `.cursor/plans/*.plan.md`, que é prescritivo passo-a-passo para o Cursor executar. Aqui a spec descreve **o quê** e **por quê**, com critério de aceite testável; o **como** fica com o dev. Ver [ADR-0039](../../../docs/adr/0039-team-scaling-task-spec-and-review-workflow.md).
 
-## 0. Como conduzir a conversa (disciplina da skill `grilling`)
+## 0. Como conduzir a conversa (disciplina da skill `harness:grilling`)
 
-Levantar o conteúdo (passo 1) e resolver conflitos de arquitetura (passo 2) segue a mesma disciplina da skill `grilling`, aplicada ao design da task em vez de a um plano de código:
+Levantar o conteúdo (passo 1) e resolver conflitos de arquitetura (passo 2) segue a mesma disciplina da skill `harness:grilling`, aplicada ao design da task em vez de a um plano de código:
 
 - **Uma pergunta por vez.** Nunca acumule várias perguntas num só turno — é confuso. Espere a resposta do owner antes de seguir para a próxima.
 - **Sempre traga uma recomendação.** Para cada pergunta, já venha com sua resposta sugerida (e o porquê) — o owner decide, mas não parte do zero.
@@ -31,7 +31,7 @@ Pergunte (ou extraia do argumento, se dado) o suficiente para preencher:
 
 Antes de finalizar, confira contra a hierarquia de fontes (`CLAUDE.md` §3): ADRs relacionados ao domínio tocado, rules do Cursor relevantes à área (`.cursor/rules/005-documentation-context-hierarchy.mdc` despacha por área), e o `scope.md`/`acceptance-criteria.md` da release corrente. Cite os ADRs/rules aplicáveis na spec — o dev que só olha o Work Item precisa saber onde procurar as regras do jogo, já que ele não lê `.cursor/rules/*` com a curadoria automática que o Cursor recebe.
 
-**Se a task pedida conflitar com uma decisão já fixada em ADR** (ex.: automação vedada por um ADR, mudança de stack implícita) **— pare e aplique a skill `domain-modeling`**: isso é uma decisão do owner (grilling, um item por vez — §0), não algo para contornar em silêncio ou anotar como ressalva na spec. O critério de "quando oferecer ADR" da `domain-modeling` (difícil de reverter + surpreendente sem contexto + resultado de trade-off real) decide se o conflito vira emenda a um ADR existente, ADR novo, ou redução de escopo da task — apresente as opções ao owner como a `domain-modeling` faria, não decida sozinho.
+**Se a task pedida conflitar com uma decisão já fixada em ADR** (ex.: automação vedada por um ADR, mudança de stack implícita) **— pare e aplique a skill `harness:domain-modeling`**: isso é uma decisão do owner (grilling, um item por vez — §0), não algo para contornar em silêncio ou anotar como ressalva na spec. O critério de "quando oferecer ADR" da `domain-modeling` (difícil de reverter + surpreendente sem contexto + resultado de trade-off real) decide se o conflito vira emenda a um ADR existente, ADR novo, ou redução de escopo da task — apresente as opções ao owner como a `domain-modeling` faria, não decida sozinho.
 
 ## 3. Checar conflito com o que já está em andamento
 

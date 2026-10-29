@@ -50,4 +50,4 @@ Diferente do `/revise` (que só atualiza documentação interna, já que o "impl
 
 Só depois do owner confirmar o veredicto, atualize a documentação de governança no formato já em uso (mesmo passo do `/revise` item 5): build-log da release corrente, linha-ponteiro em `CLAUDE.md` §8 se fechar/avançar um ADR, `scope.md`/`release-map.md` se fechar item de escopo, `MEMORY.md`.
 
-Se a auditoria revelar necessidade de ADR novo, não crie sozinho — aplique o critério de "quando oferecer ADR" da skill `domain-modeling` e proponha ao owner.
+Se a auditoria revelar necessidade de ADR novo, não crie sozinho — aplique o critério de "quando oferecer ADR" da skill `harness:domain-modeling` e proponha ao owner.

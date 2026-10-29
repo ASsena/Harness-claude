@@ -107,7 +107,7 @@ Use o vocabulário já definido em `code-audit-mode.md`: **conforme** / **confor
 
 Desenhe um plano novo — artefato, nunca código — e salve em `.cursor/plans/<slug>-correcoes.plan.md` (mesma convenção de nome já usada no repo, ex. `adr-0016_sh2_pool_reset_startup_guard.plan.md`), para o Cursor rodar via `/execute` de novo.
 
-**Antes de entregar o plano, aplique a skill `plan-for-cursor`** — os passes e a seção obrigatória de verificações. Ela existe porque planos meus já saíram com passo impossível de executar (porta inexistente), teste rotulado com o que não prova, e gate somado por precaução.
+**Antes de entregar o plano, aplique a skill `harness:plan-for-cursor`** — os passes e a seção obrigatória de verificações. Ela existe porque planos meus já saíram com passo impossível de executar (porta inexistente), teste rotulado com o que não prova, e gate somado por precaução.
 
 **Nunca edite o código diretamente**, nem para achados pequenos ("só uma mensagem de erro", "só uma string", "fix trivial") — regra do owner de 2026-07-09, sem exceção mesmo em pós-auditoria (`never-edit-product-code.md`). Todo achado vira item da lista do plano de correção para o Cursor executar.
 
@@ -150,7 +150,7 @@ Duas distinções que evitam burocracia inútil:
 
 ⚠️ **Nenhuma sentinela pega isto.** As duas afirmações erradas acima não são mecanizáveis: uma é comportamental (só se checa rodando), a outra é config que vive fora do repositório. Este é o único controle desta skill que depende inteiramente de disciplina — e por isso está escrito, em vez de suposto.
 
-Se a auditoria revelar que a mudança merece uma ADR e ainda não tem uma, não crie sozinho — aplique o critério de "quando oferecer ADR" da skill `domain-modeling` (difícil de reverter + surpreendente sem contexto + resultado de trade-off real) e proponha ao owner.
+Se a auditoria revelar que a mudança merece uma ADR e ainda não tem uma, não crie sozinho — aplique o critério de "quando oferecer ADR" da skill `harness:domain-modeling` (difícil de reverter + surpreendente sem contexto + resultado de trade-off real) e proponha ao owner.
 
 ## 6. Fechar o relógio e descartar o relatório
 

@@ -71,7 +71,7 @@ Antes de desenhar qualquer fatia, percorra a hierarquia do `CLAUDE.md` §3 pelas
 - **Release corrente**: `docs/roadmap/release-map.md` e o `scope.md`. Se a WI pedir algo de release futura, isso é congelamento (`CLAUDE.md` §2, T93) — leve ao dev, não planeje por cima.
 - **Vocabulário canônico** antes de nomear qualquer coisa (`CLAUDE.md` §5): Lead × Contact × Opportunity × Customer, papéis × unidades de venda, Ticket × Ação.
 
-**Se o pedido conflitar com um ADR vigente**, pare e aplique a skill `domain-modeling` — o conflito vira emenda a ADR, ADR novo ou corte de escopo, e a escolha é do dev. Nunca vire ressalva dentro do plano.
+**Se o pedido conflitar com um ADR vigente**, pare e aplique a skill `harness:domain-modeling` — o conflito vira emenda a ADR, ADR novo ou corte de escopo, e a escolha é do dev. Nunca vire ressalva dentro do plano.
 
 ---
 
@@ -83,7 +83,7 @@ Se a WI mexe em tela (critérios no §1 da skill `mockup-task`), carregue a skil
 
 ## 4. A régua dos 95% — bloqueia e pergunta
 
-Qualquer ponto em que a certeza fique abaixo de **95%** trava a gravação do plano. Disciplina da skill `grilling`, igual ao `/spec-task` §0:
+Qualquer ponto em que a certeza fique abaixo de **95%** trava a gravação do plano. Disciplina da skill `harness:grilling`, igual ao `/spec-task` §0:
 
 - **Uma pergunta por vez.** Espere a resposta antes da próxima.
 - **Sempre com recomendação.** Traga sua resposta sugerida e o porquê; o dev decide, mas não parte do zero.
@@ -104,7 +104,7 @@ Gatilhos típicos de "<95%" nesta casa — se algum aparecer, é pergunta, não 
 
 ## 5. Escrever o plano
 
-**Antes de entregar, aplique a skill `plan-for-cursor` inteira** — os passes e a seção obrigatória de verificações. Ela é a régua de qualidade; não recrie nem resuma aqui.
+**Antes de entregar, aplique a skill `harness:plan-for-cursor` inteira** — os passes e a seção obrigatória de verificações. Ela é a régua de qualidade; não recrie nem resuma aqui.
 
 **Um arquivo por WI**, fatiado por dentro: `.cursor/plans/wi_<id>_<slug>.plan.md`. Só vire mais de um arquivo se a WI abrigar entregas genuinamente independentes — e nesse caso proponha o corte ao dev antes de gravar.
 
