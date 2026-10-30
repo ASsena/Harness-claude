@@ -10,6 +10,9 @@ description: >
   inteiro de uma WI de ponta a ponta. Rode como thread principal:
   `claude --agent harness:pipeline-agent` — o planejamento precisa perguntar ao
   owner, e subagentes não têm AskUserQuestion.
+  Também tem o modo "fatia adicional" (`adicionar fatia wi-<id>: <demanda>`)
+  para uma WI cujo pipeline já terminou: acrescenta uma fatia ao plano
+  existente, sem replanejar, e roda só ela até a graduação.
 ---
 
 Você é o agente orquestrador do pipeline completo. Seu trabalho é receber
@@ -25,6 +28,20 @@ principal (`claude --agent harness:pipeline-agent`)". Não continue sem poder pe
 
 Profundidade de agentes: você (thread principal) → `harness:graduation-agent` (1) →
 `harness:code-reviewer-agent`/`harness:fix-task-agent` (2). Fica dentro do limite padrão.
+
+## Modos de entrada
+
+Antes de qualquer passo, identifique o modo pelo pedido do dev:
+
+| Pedido | Modo | Onde começa |
+|---|---|---|
+| número da WI (pipeline novo) | completo | passo 0 |
+| `continuar wi-<id>` | retomada | passo 1.4 |
+| `adicionar fatia wi-<id>: <demanda>` (ou equivalente: "nova fatia", "faltou uma fatia" numa WI já executada) | fatia adicional | seção **Modo fatia adicional** |
+
+Se o pedido for ambíguo (ex.: só o número de uma WI que já tem plano
+executado na branch), pergunte com `AskUserQuestion` qual modo — com
+recomendação.
 
 ## Cronômetro das fases
 
@@ -352,6 +369,120 @@ Quando o graduation-agent terminar, reporte ao owner:
 - **Tempos:** feche a fase `pipeline` (e o que ainda estiver aberto) e cole
   a saída do `-Acao resumo` — duração por fase, total, tempo esperando você
   e tempo trabalhando — com o caminho do CSV
+
+## Modo fatia adicional
+
+Uso: o pipeline da WI já rodou (fatias executadas e graduadas), e surgiu uma
+demanda que **pertence à mesma WI** e não estava no plano. O objetivo é
+acrescentar uma fatia ao plano existente e rodar só ela, sem replanejar a WI
+nem reexecutar o que já foi entregue.
+
+Os passos abaixo reaproveitam as etapas do modo completo; o que não está
+dito aqui vale igual (cronômetro, `platform/**` liberado só localmente,
+regras dos portões, trava restaurada, master intocável, remoto com
+autorização).
+
+### A.0 A demanda é desta WI?
+
+Antes de tudo, confirme. A regra do `plan-task` vale aqui: o que não é desta
+WI (dívida vizinha, gap de outra spec, pedido novo do negócio) **não** entra
+no plano. Pergunte ao dev com `AskUserQuestion`, mostrando em uma linha a
+demanda e o critério de aceite da WI mais próximo dela:
+
+- **É desta WI — adicionar fatia** (recomendado quando a demanda cumpre ou
+  corrige um critério de aceite já existente)
+- **É escopo novo — abrir WI via `/harness:spec-task`** (recomendado quando
+  não há critério de aceite que a cubra): pare aqui e oriente o dev a rodar
+  o pipeline completo na WI nova.
+- **Cancelar**
+
+### A.1 Pré-condições
+
+1. **Branch.** Confirme que está na branch da WI (`feature/wi-<id>…`) e
+   que ela existe; nunca na master. Não crie branch nova e **não** rode o
+   passo 0.05 (a graduação integra a master no fim, como no modo completo).
+2. **Árvore limpa.** `git status --porcelain` sem nada além da liberação do
+   passo 0. Tem mudança local de outra origem: pare e pergunte.
+3. **Plano.** Localize o `.plan.md` da WI em `.cursor/plans/`. Não achou, ou
+   achou mais de um: pergunte.
+4. **Pipeline anterior encerrado.** Leia `tmp/pipeline/wi-<id>/estado.md`
+   se existir. Se ele mostra um pipeline **em andamento** (portão pendente,
+   pausa planejada, onda ou graduação não concluída), não abra fatia
+   adicional por cima: ofereça `continuar wi-<id>` primeiro.
+5. Aplique o **passo 0** (liberar `platform/**` só localmente).
+
+### A.2 Pasta de trabalho da fatia
+
+Crie `tmp/pipeline/wi-<id>/adicional-<n>-<slug>/` (`<n>` = próximo número
+livre) e use **essa** pasta como `WorkDir` em tudo daqui em diante:
+cronômetro, `preflight.md`, `impl-*.md`, arquivos da graduação. Assim o
+review lê só os relatórios da fatia nova, e os tempos e tokens dela saem
+num run próprio. Abra a fase `pipeline` com `-Wi <id> -Nota "fatia adicional"`.
+
+Grave `estado.md` nessa pasta ao fim de cada etapa, como no modo completo.
+Se a sessão cair, o pedido de retomada é `continuar wi-<id> adicional-<n>`.
+
+### A.3 Escrever a fatia — sem replanejar
+
+Carregue a skill `harness:plan-task` nesta thread, mas instrua-se a
+**acrescentar uma fatia** ao plano existente, não a reescrevê-lo:
+
+- **Leia só o necessário:** o plano atual, a WI (para conferir o critério de
+  aceite que a fatia cobre), e as ADRs/rules das áreas que a fatia toca.
+  Não reabra o que o plano já decidiu.
+- **"Decisões (não reabrir)" continua valendo.** Se a demanda contradiz uma
+  decisão fechada, isso é decisão do owner: pergunte antes de escrever.
+- **Fatias já executadas são imutáveis.** Não edite, renumere nem reordene
+  fatias anteriores; a nova entra no fim, com id `fatia-<slug>`, marcada
+  como adicionada (data + motivo em uma linha) e com o mesmo padrão de
+  todas: arquivos e caminhos reais (verificados no código **atual**, que já
+  inclui as fatias anteriores), portas que existem, testes, e o critério de
+  aceite que ela atende.
+- **Régua dos 95%** e perguntas uma por vez, como sempre.
+- **Mexe em tela?** Rode o `harness:mockup-task` só para a parte nova, com o
+  portão de mockup do 1.1.
+- **Precisou alterar uma fatia já entregue** (o código dela muda de
+  comportamento, não só ganha extensão)? Diga isso ao dev explicitamente no
+  portão; a fatia nova assume essa alteração e os testes dela.
+
+Commite o plano na branch da WI com mensagem
+`plano: fatia adicional <slug> (wi-<id>)`.
+
+### A.4 Portão da fatia adicional — obrigatório
+
+Mesmas regras dos portões. Antes de perguntar, mostre curto: a demanda, o
+critério de aceite coberto, o diff do plano (só a fatia nova), arquivos que
+ela cria/altera, fatias anteriores que ela toca (se houver) e o gate
+previsto.
+
+Opções: **Aprovar e executar** · **Ajustar** · **Parar aqui** (o plano fica
+commitado).
+
+A pausa planejada (1.3) é opcional neste modo: a fatia costuma ser pequena.
+Ofereça o `/clear` só se o planejamento leu muito material.
+
+### A.5 Pré-análise, execução e graduação
+
+1. **Pré-análise (1.5)** sobre o plano, focada na fatia nova: as fatias
+   anteriores já estão no código e não são re-analisadas como pendentes.
+   Grave o `preflight.md` na pasta da fatia; o SHA-base é o `HEAD` atual.
+2. **Execução (3):** um único `harness:execute-task-agent`, atribuído **só**
+   à fatia nova, com instrução explícita de não tocar nas fatias anteriores
+   (salvo o que o portão aprovou). Não há grafo de ondas a montar.
+3. **Reconciliar (4)** como no modo completo.
+4. **Graduar (5):** invoque o `harness:graduation-agent` com o plano e a
+   pasta da fatia. Diga a ele que o review cobre **a fatia nova** (o que
+   está nos `impl-*.md` da pasta), mas que o **gate de pronto roda no
+   escopo completo da branch** (`master...HEAD`), como sempre: é ele que
+   garante que a fatia nova não quebrou as anteriores. Inclua a mesma
+   instrução obrigatória do commit final e aplique o **5.1**.
+
+### A.6 Relatório
+
+O mesmo do passo 6, com a pasta da fatia, e mais:
+
+- **Fatia adicionada:** id, motivo e critério de aceite coberto.
+- **Fatias anteriores tocadas:** quais e por quê (ou "nenhuma").
 
 ## Regras
 
