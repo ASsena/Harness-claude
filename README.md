@@ -35,6 +35,7 @@ Tudo fica com o prefixo do plugin:
 | O quê | Como chamar |
 | --- | --- |
 | Pipeline completo de uma WI | `claude --agent harness:pipeline-agent` |
+| Fatia nova numa WI já executada | `claude --agent harness:pipeline-agent "adicionar fatia wi-<id>: <demanda>"` |
 | Só planejar | `claude --agent harness:plan-task-agent` ou `/harness:plan-task <WI>` |
 | Mockup de tela de uma WI | roda dentro do `/harness:plan-task`; avulso: `/harness:mockup-task <WI>` |
 | Conferir a tela contra o mockup | roda na graduação quando o plano tem `visual_reference`; avulso: `/harness:verify-visual <plano>` |
