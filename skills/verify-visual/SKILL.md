@@ -26,7 +26,7 @@ Uma linha por coisa verificável:
 | Fonte | Vira item |
 |---|---|
 | Cada decisão `D<n>` | posição, ordem, tamanho (px), token de cor (com o valor), tipografia, gap, copy exata, aria |
-| Cada `data-componente` / `data-novo` do HTML da Decisão | o bloco existe na tela, na mesma região, com o componente decidido |
+| Cada `data-componente` / `data-novo` do HTML da Decisão (liste com `node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" pecas --arquivo "<Decisão>" --data-dir "${CLAUDE_PLUGIN_DATA}"` — **nunca** `Read` na captura; o hook bloqueia) | o bloco existe na tela, na mesma região, com o componente decidido |
 | Cada estado do mockup | padrão, vazio, carregando, erro, validação (um arquivo `… - Decisão - <estado>.html` por estado) |
 | Larguras | desktop (1440×900) e, se o mockup tiver, a estreita (390×844) |
 

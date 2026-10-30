@@ -1,5 +1,5 @@
 {
-  "description": "Trava do harness: nunca commita nem dá push na master; toda alteração no repositório remoto (git push, Azure DevOps, GitHub) pede confirmação do dev.",
+  "description": "Travas e medição do harness: master e remoto (trava-remoto), leitura inteira de captura de tela bloqueada (guarda-leitura), tokens por subagente e por sessão durante o pipeline (tokens).",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,8 +8,53 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/trava-remoto.mjs"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/trava-remoto.mjs"
+            ],
             "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/guarda-leitura.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/tokens.mjs",
+              "hook"
+            ],
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/tokens.mjs",
+              "hook"
+            ],
+            "timeout": 30
           }
         ]
       }

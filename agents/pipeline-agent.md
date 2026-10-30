@@ -59,7 +59,13 @@ tempo de trabalho no resumo.
 `-Acao fechar-abertas -Status <ok|cancelado|escalado|falha>` e rode
 `-Acao resumo`; o resumo entra no relatório final. **Retomada** depois de a
 sessão cair: rode `fechar-abertas -Status interrompido` antes de continuar e
-abra uma fase `pipeline` nova com `-Nota "retomada"`.
+abra uma fase `pipeline` nova com `-Nota "retomada"`. **Exceção: a pausa
+planejada do 1.3** não é queda — não feche nada, as fases seguem abertas.
+
+**Tokens:** um hook do plugin soma os tokens de cada subagente e da thread
+principal (a cada `/clear` e no fim da sessão) em
+`%USERPROFILE%\.claude\brixbroker\pipeline-tokens.csv`, na fase que estava
+aberta. Você não precisa fazer nada além de manter o cronômetro em dia.
 
 **O cronômetro nunca bloqueia o pipeline.** Se o script falhar (sem
 PowerShell, CSV aberto no Excel), avise o dev uma vez e siga sem registrar.
@@ -155,6 +161,36 @@ commitado para executar depois).
   aprovado). Se a sessão cair, retome do portão pendente — nunca pule um
   portão porque o arquivo já existe.
 - Nada do passo 1.5 em diante começa antes de "Aprovar e executar".
+
+#### 1.3 Pausa planejada — contexto limpo para a execução
+
+Tudo que o planejamento leu (WI, ADRs, rules, `plan-for-cursor`, mockup,
+perguntas) continua no seu contexto e seria re-enviado, no preço do Opus, em
+cada chamada da execução e da graduação — que não precisam de nada disso: o
+plano commitado é a fonte. Por isso, depois de "Aprovar e executar":
+
+1. Feche `portao-plano` e `planejamento` no cronômetro.
+2. Grave em `estado.md`: `pausa planejada: aguardando /clear`, o caminho do
+   plano, a branch, o SHA do commit do plano e `próximo: 1.5`.
+3. Diga ao dev, e **encerre o turno** (não chame mais nenhuma ferramenta):
+
+   > Plano aprovado e commitado. Para a execução começar com o contexto
+   > limpo, digite **`/clear`** e depois **`continuar wi-<id>`**.
+   > (Se depois do `/clear` eu não estiver mais como pipeline-agent, abra
+   > `claude --agent harness:pipeline-agent "continuar wi-<id>"`.)
+
+Se o dev responder pedindo para seguir **sem** limpar, siga — a escolha é dele.
+
+#### 1.4 Retomar depois da pausa
+
+Pedido "continuar wi-<id>" com `estado.md` em `pausa planejada`:
+
+- Leia **só** `estado.md` e o plano. Não reabra a WI, ADRs, rules,
+  `plan-for-cursor` nem o mockup — o plano já carrega o que a execução
+  precisa (é o contrato da `plan-for-cursor`).
+- Confira a branch e o SHA do plano registrados; divergiu, pergunte ao dev.
+- **Não** rode `fechar-abertas`: o run e a fase `pipeline` continuam.
+- Troque o estado para `em execução` e siga para o 1.5.
 
 ### 1.5 Pré-análise — uma vez só, antes das ondas
 
@@ -309,6 +345,10 @@ Quando o graduation-agent terminar, reporte ao owner:
 - **Rodadas de review e tentativas de gate:** quantas foram necessárias
 - **SHA do commit:** se houve commit
 - **Sugestões pendentes:** achados 🔵 para decisão futura
+- **Tokens:** cole a saída de
+  `node "${CLAUDE_PLUGIN_ROOT}/scripts/tokens.mjs" resumo --workdir tmp/pipeline/wi-<id>`
+  (por agente/modelo e por fase). O total da thread de execução só entra
+  quando a sessão terminar — diga isso.
 - **Tempos:** feche a fase `pipeline` (e o que ainda estiver aberto) e cole
   a saída do `-Acao resumo` — duração por fase, total, tempo esperando você
   e tempo trabalhando — com o caminho do CSV

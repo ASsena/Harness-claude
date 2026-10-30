@@ -10,6 +10,14 @@
 //        [--antes <arquivo.js>] [--headed]
 //   node capturar-tela.mjs screenshot --arquivo <html> --out <png> [--viewport 1440x900]
 //   node capturar-tela.mjs comparar --a <png> --b <png> --out <diff.png> [--ignorar x,y,w,h;...]
+//   node capturar-tela.mjs pecas      --arquivo <html>        (componentes da tela, com um seletor de cada)
+//   node capturar-tela.mjs extrair    --arquivo <html> --seletor <css> [--indice N] [--max 20000]
+//   node capturar-tela.mjs substituir --arquivo <html> --seletor <css> --com <fragmento.html>
+//                                     [--modo trocar|antes|depois|dentro] [--indice N] [--saida <html>]
+//   node capturar-tela.mjs css-de     --arquivo <doador.html> --para <html>   (anexa o CSS do doador)
+//
+// Os quatro últimos existem para NUNCA ler a captura inteira (ela traz todo o CSS do app):
+// o agente vê e mexe só no trecho que a WI muda.
 //
 // Login (Keycloak): reaproveita a sessão salva em <data-dir>/auth/<host>.json.
 // Sem sessão válida, abre o navegador VISÍVEL e espera o dev entrar (até 5 min);
@@ -266,6 +274,99 @@ async function comparar() {
   console.log(JSON.stringify({ pixelsDiferentes: diff, percentual: Number(pct.toFixed(3)), diff: out || null }));
 }
 
-const run = { capturar, screenshot, comparar }[cmd];
-if (!run) die('comando: capturar | screenshot | comparar');
+// ---------------------------------------------------------------- edição sem ler o arquivo inteiro
+// Abre a captura com JavaScript desligado (nada roda), mexe no DOM e grava de volta.
+async function openStatic(arquivo) {
+  const { chromium } = loadDeps(opt['data-dir']);
+  const browser = await launch(chromium, false);
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport });
+  const page = await context.newPage();
+  await page.goto(new URL(`file://${path.resolve(String(arquivo))}`).href, { waitUntil: 'domcontentloaded' });
+  return { browser, page };
+}
+const serializeDoc = () => '<!doctype html>\n' + document.documentElement.outerHTML;
+
+async function pecas() {
+  if (!opt.arquivo) die('pecas exige --arquivo.');
+  const { browser, page } = await openStatic(opt.arquivo);
+  const res = await page.evaluate(() => {
+    const sel = (el) => {
+      const parts = [];
+      for (let e = el; e && e.nodeType === 1 && e !== document.body; e = e.parentElement) {
+        if (e.id && /^[A-Za-z][\w-]*$/.test(e.id)) { parts.unshift(`#${e.id}`); break; }
+        const tag = e.tagName.toLowerCase();
+        const sib = [...(e.parentElement?.children || [])].filter((x) => x.tagName === e.tagName);
+        parts.unshift(sib.length > 1 ? `${tag}:nth-of-type(${sib.indexOf(e) + 1})` : tag);
+      }
+      return parts.join(' > ');
+    };
+    const m = new Map();
+    for (const el of document.body.querySelectorAll('*')) {
+      const tag = el.tagName.toLowerCase();
+      const marked = el.getAttribute('data-componente') || el.getAttribute('data-novo');
+      if (!tag.includes('-') && !marked) continue;
+      const key = marked ? `${tag} [${el.hasAttribute('data-novo') ? 'novo' : 'marcado'}: ${marked}]` : tag;
+      const a = m.get(key) || { quantidade: 0, primeiro: sel(el), texto: (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60) };
+      a.quantidade += 1; m.set(key, a);
+    }
+    return [...m].map(([componente, a]) => ({ componente, ...a }));
+  });
+  await browser.close();
+  console.log(JSON.stringify(res, null, 1));
+}
+
+async function extrair() {
+  if (!opt.arquivo || !opt.seletor) die('extrair exige --arquivo e --seletor.');
+  const { browser, page } = await openStatic(opt.arquivo);
+  const idx = Number(opt.indice || 0);
+  const out = await page.evaluate(([s, i]) => {
+    const all = document.querySelectorAll(s);
+    return { total: all.length, html: all[i] ? all[i].outerHTML : null };
+  }, [String(opt.seletor), idx]);
+  await browser.close();
+  if (!out.html) die(`seletor não encontrou nada (total ${out.total}).`);
+  const max = Number(opt.max || 20000);
+  const cut = out.html.length > max;
+  console.log(`<!-- ${out.total} ocorrência(s); mostrando a ${idx}${cut ? `; cortado em ${max} de ${out.html.length} caracteres — use um seletor mais específico` : ''} -->`);
+  console.log(cut ? out.html.slice(0, max) : out.html);
+}
+
+async function substituir() {
+  if (!opt.arquivo || !opt.seletor || !opt.com) die('substituir exige --arquivo, --seletor e --com.');
+  const frag = fs.readFileSync(String(opt.com), 'utf8');
+  const modo = String(opt.modo || 'trocar');
+  const { browser, page } = await openStatic(opt.arquivo);
+  const r = await page.evaluate(([s, i, f, mo]) => {
+    const all = document.querySelectorAll(s);
+    const el = all[i];
+    if (!el) return { ok: false, total: all.length };
+    const pos = { trocar: null, antes: 'beforebegin', depois: 'afterend', dentro: null }[mo];
+    if (mo === 'trocar') el.outerHTML = f;
+    else if (mo === 'dentro') el.innerHTML = f;
+    else el.insertAdjacentHTML(pos, f);
+    return { ok: true, total: all.length };
+  }, [String(opt.seletor), Number(opt.indice || 0), frag, modo]);
+  if (!r.ok) { await browser.close(); die(`seletor não encontrou nada (total ${r.total}).`); }
+  const html = await page.evaluate(serializeDoc);
+  await browser.close();
+  const destino = String(opt.saida || opt.arquivo);
+  fs.writeFileSync(destino, html);
+  console.log(JSON.stringify({ arquivo: destino, modo, ocorrencias: r.total, kb: Math.round(Buffer.byteLength(html) / 1024) }));
+}
+
+async function cssDe() {
+  if (!opt.arquivo || !opt.para) die('css-de exige --arquivo (doador) e --para.');
+  const doador = fs.readFileSync(String(opt.arquivo), 'utf8');
+  const m = doador.match(/<style data-captura="css-do-app">([\s\S]*?)<\/style>/);
+  if (!m) die('o doador não tem <style data-captura>.');
+  let alvo = fs.readFileSync(String(opt.para), 'utf8');
+  const tag = `<style data-captura="doador:${path.basename(String(opt.arquivo))}">`;
+  if (alvo.includes(tag)) { console.log(JSON.stringify({ jaAnexado: true })); return; }
+  alvo = alvo.replace('</head>', `${tag}${m[1]}</style></head>`);
+  fs.writeFileSync(String(opt.para), alvo);
+  console.log(JSON.stringify({ para: opt.para, cssKB: Math.round(m[1].length / 1024) }));
+}
+
+const run = { capturar, screenshot, comparar, pecas, extrair, substituir, 'css-de': cssDe }[cmd];
+if (!run) die('comando: capturar | screenshot | comparar | pecas | extrair | substituir | css-de');
 run().catch((e) => die(e.stack || String(e)));

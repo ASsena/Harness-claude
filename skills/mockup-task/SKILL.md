@@ -75,9 +75,20 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" capturar \
 
 ## 4. Escolher as peças e editar a captura
 
+**Nunca abra uma captura com `Read`** — ela traz todo o CSS do app (centenas de KB), e o que você lê fica no contexto pelo resto da sessão. O hook do plugin bloqueia. Trabalhe só com o trecho que a WI muda:
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" pecas      --arquivo "<html>" --data-dir "${CLAUDE_PLUGIN_DATA}"                       # componentes da tela + um seletor de cada
+node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" extrair    --arquivo "<html>" --seletor "<css>" [--indice N] --data-dir "${CLAUDE_PLUGIN_DATA}"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" substituir --arquivo "<html>" --seletor "<css>" --com <fragmento.html> [--modo trocar|antes|depois|dentro] --data-dir "${CLAUDE_PLUGIN_DATA}"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" css-de     --arquivo "<doador.html>" --para "<html>" --data-dir "${CLAUDE_PLUGIN_DATA}"   # CSS de uma tela doadora
+```
+
+Fragmentos que você escreve vão para `tmp/mockup/`, nunca para o import.
+
 Liste o que a tela capturada já usa (pelos seletores `broker-*` e componentes de feature no DOM). Para cada elemento do pedido, nesta ordem:
 
-1. **`broker-*` ou componente da feature que serve como está** → copie o `outerHTML` de **uma instância real** (desta captura ou de um doador), com os atributos `_ngcontent-*`/`_nghost-*` intactos, e troque só texto e estado.
+1. **`broker-*` ou componente da feature que serve como está** → `extrair` **uma instância real** (desta captura ou de um doador), com os atributos `_ngcontent-*`/`_nghost-*` intactos, troque só texto e estado no fragmento e aplique com `substituir`.
 2. **Serve com uma variação que ele já suporta** (`density`, modificador) → só se houver instância real com essa variação capturada; senão capture uma tela que a tenha.
 3. **Quase serve, mas exigiria mudar o componente** → pergunta ao dev (estender × criar), com recomendação e a lista das telas que consomem o componente.
 4. **Nada serve** → componente novo **dentro da feature** (processo do `design-system-evolution.md`), montado só com as variáveis `--md-*` que já estão no `:root` da captura, e marcado como novo.
@@ -86,12 +97,12 @@ Nunca invente cor, fonte, espaçamento ou raio fora dos tokens. Valor que o tema
 
 **Editar:**
 
-- Copie `"<Tela> - base.html"` para `"<Tela> - Decisão.html"` e **mexa só na região que a WI muda**. O resto da página fica byte a byte como capturado.
-- Peça vinda de doador: além do `outerHTML`, acrescente ao fim do `<style data-captura>` da Decisão o bloco `<style data-captura>` do doador (regras duplicadas não fazem mal; regras faltando quebram o visual).
+- Copie `"<Tela> - base.html"` para `"<Tela> - Decisão.html"` pelo shell (`cp`/`Copy-Item`) e **mexa só na região que a WI muda**, com `extrair` → editar o fragmento → `substituir`. O resto da página fica como capturado.
+- Peça vinda de doador: `extrair` a instância no arquivo do doador e rode `css-de --arquivo <doador> --para <Decisão>` uma vez (regras duplicadas não fazem mal; regras faltando quebram o visual).
 - Marque cada bloco com atributos, sem mudar layout: `data-componente="<seletor broker-* ou caminho>"`, `data-variacao="..."`, `data-novo="<nome proposto>"`. É o que o plano e o `/verify-visual` leem.
-- Anotações: acrescente no fim do `<body>` um botão fixo "mostrar anotações" (`position: fixed`, escondido por padrão no layout) que contorna cada bloco com *reaproveitado: X* ou *novo: Y*. Nada além disso é injetado.
+- Anotações: com `substituir --seletor "body > script:last-of-type" --modo antes`, acrescente um botão fixo "mostrar anotações" (`position: fixed`, escondido por padrão no layout) que contorna cada bloco com *reaproveitado: X* ou *novo: Y*. Nada além disso é injetado.
 - **Estados**: um arquivo por estado — `"<Tela> - Decisão.html"` (padrão), `"<Tela> - Decisão - vazio.html"`, `"… - carregando.html"`, `"… - erro.html"`, e os de validação. Capturado de verdade quando possível (§3); editado a partir da Decisão quando não. Estado que a WI não definiu é pergunta ao dev.
-- Dados: troque os dados reais do seed por fictícios plausíveis com o **vocabulário canônico** (`CLAUDE.md` §5). Nada de dado real de cliente no import.
+- Dados: troque os dados reais do seed por fictícios plausíveis — região por região, com `extrair`/`substituir`, nunca lendo o arquivo inteiro — com o **vocabulário canônico** (`CLAUDE.md` §5). Nada de dado real de cliente no import.
 - Cabeçalho em comentário HTML: WI, data, status (`rascunho` / `aprovado em <data>`), URL e data da captura.
 
 **Conferir a fidelidade antes de mostrar** — a parte que a WI não muda tem de ficar idêntica à tela real:

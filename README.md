@@ -65,6 +65,17 @@ O tempo é carimbado por `scripts/log-fase.ps1` (relógio do sistema, não do mo
 `tipo = espera` marca o tempo esperando o dev nos portões e conflitos.
 Resumo de um run: `powershell -File scripts/log-fase.ps1 -Acao resumo -WorkDir tmp/pipeline/wi-<id>`.
 
+## Tokens
+
+Durante um run do pipeline, hooks somam os tokens de cada subagente (`SubagentStop`) e da thread principal (`SessionEnd`, inclusive no `/clear`) em
+`%USERPROFILE%\.claude\brixbroker\pipeline-tokens.csv`:
+`run_id;wi;quando;fase;agente;agent_id;modelo;chamadas;input;cache_escrita;cache_leitura;output;contexto_total`.
+Resumo: `node scripts/tokens.mjs resumo --workdir tmp/pipeline/wi-<id>`. Fora do pipeline, os hooks não registram nada.
+
+Economia embutida:
+- **Pausa planejada:** depois do plano aprovado, o pipeline pede `/clear` + `continuar wi-<id>`; a execução começa só com o plano, sem o contexto do planejamento.
+- **Captura nunca lida inteira:** o hook `guarda-leitura` bloqueia `Read` em capturas de tela; o agente usa `pecas` / `extrair` / `substituir` / `css-de` do `capturar-tela.mjs`.
+
 ## Captura da tela real (mockups)
 
 O `mockup-task` parte da tela **renderizada** do app, não do código: `scripts/capturar-tela.mjs` salva DOM + todo o CSS aplicado (inclusive o encapsulado do Angular e o do Material) + fontes num HTML que abre sozinho, idêntico ao app, e o mockup é a captura editada só na região da WI. `comparar` mede quanto o resto da tela mudou (alvo: ≤ 0,5%).
