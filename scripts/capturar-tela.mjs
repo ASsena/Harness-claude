@@ -7,7 +7,11 @@
 // Uso:
 //   node capturar-tela.mjs capturar --url <url> --out <pasta> --nome <arquivo-sem-ext>
 //        --data-dir <dir persistente> [--viewport 1440x900] [--esperar <seletor>]
-//        [--antes <arquivo.js>] [--headed]
+//        [--antes <arquivo.js>] [--headed] [--sem-interativo]
+//   node capturar-tela.mjs auth --url <url do app> --data-dir <dir>
+//        [--realm-json <arquivo do realm> --usuario <username>]   (senha lida do realm, nunca impressa)
+//        (ou credenciais em HARNESS_LOGIN_USER / HARNESS_LOGIN_PASSWORD)
+//        [--checar]   (só diz se a sessão salva ainda vale; não loga)
 //   node capturar-tela.mjs screenshot --arquivo <html> --out <png> [--viewport 1440x900]
 //   node capturar-tela.mjs comparar --a <png> --b <png> --out <diff.png> [--ignorar x,y,w,h;...]
 //   node capturar-tela.mjs pecas      --arquivo <html>        (componentes da tela, com um seletor de cada)
@@ -19,9 +23,13 @@
 // Os quatro últimos existem para NUNCA ler a captura inteira (ela traz todo o CSS do app):
 // o agente vê e mexe só no trecho que a WI muda.
 //
-// Login (Keycloak): reaproveita a sessão salva em <data-dir>/auth/<host>.json.
-// Sem sessão válida, abre o navegador VISÍVEL e espera o dev entrar (até 5 min);
-// a sessão fica salva para as próximas capturas. O script nunca recebe senha.
+// Login (Keycloak): sessão salva em <data-dir>/auth/<host>.json (cookies + localStorage,
+// formato storageState do Playwright) e <host>.session.json (sessionStorage — onde o
+// cliente OIDC costuma guardar o token, e que o storageState NÃO cobre).
+// Ordem ao capturar: 1) sessão salva; 2) login automático headless com o usuário de
+// dev (mesmas fontes do comando auth); 3) navegador visível para o dev entrar (até
+// 5 min) — desligado com --sem-interativo. Toda captura bem-sucedida renova a sessão.
+// A senha nunca é impressa nem gravada pelo script; só o estado da sessão.
 //
 // Dependências (playwright-core, pngjs, pixelmatch) são instaladas uma vez em
 // <data-dir>/deps. Navegador: Edge ou Chrome já instalados (sem download).
@@ -88,6 +96,130 @@ async function launch(chromium, headed) {
     } catch (e) { errors.push(`${channel || 'chromium'}: ${String(e.message).split('\n')[0]}`); }
   }
   die(`nenhum navegador abriu.\n  ${errors.join('\n  ')}\nInstale o Edge/Chrome ou rode: npx playwright install chromium`);
+}
+
+// ---------------------------------------------------------------- sessão (login)
+const isLoginPage = (u) => /\/realms\/|\/protocol\/openid-connect\/|login-actions/.test(u);
+
+function authPaths(url, dataDir) {
+  if (!dataDir) return null;
+  const host = new URL(url).host.replace(/[^\w.-]/g, '_');
+  const dir = path.join(dataDir, 'auth');
+  return { dir, state: path.join(dir, `${host}.json`), session: path.join(dir, `${host}.session.json`) };
+}
+
+// Contexto já com a sessão salva: storageState + sessionStorage reinjetado antes do app subir.
+async function contextoComSessao(browser, url, ap) {
+  const hasState = ap && fs.existsSync(ap.state);
+  const context = await browser.newContext({ viewport, ...(hasState ? { storageState: ap.state } : {}) });
+  if (ap && fs.existsSync(ap.session)) {
+    let saved = {};
+    try { saved = JSON.parse(fs.readFileSync(ap.session, 'utf8')); } catch { /* arquivo corrompido: ignora */ }
+    await context.addInitScript(([origin, data]) => {
+      if (location.origin !== origin) return;
+      for (const [k, v] of Object.entries(data)) { try { if (sessionStorage.getItem(k) === null) sessionStorage.setItem(k, v); } catch {} }
+    }, [new URL(url).origin, saved]);
+  }
+  return context;
+}
+
+async function salvarSessao(context, page, url, ap) {
+  if (!ap) return;
+  fs.mkdirSync(ap.dir, { recursive: true });
+  await context.storageState({ path: ap.state });
+  let ss = {};
+  if (new URL(page.url()).origin === new URL(url).origin) {
+    ss = await page.evaluate(() => Object.fromEntries(Object.keys(sessionStorage).map((k) => [k, sessionStorage.getItem(k)]))).catch(() => ({}));
+  }
+  fs.writeFileSync(ap.session, JSON.stringify(ss));
+  try { fs.chmodSync(ap.state, 0o600); fs.chmodSync(ap.session, 0o600); } catch { /* Windows */ }
+}
+
+// Credenciais do usuário de dev: env HARNESS_LOGIN_USER/PASSWORD, ou o JSON do realm
+// do AppHost (--realm-json + --usuario). Nunca loga, imprime nem devolve a senha.
+function credenciaisDev() {
+  const envUser = process.env.HARNESS_LOGIN_USER; const envPass = process.env.HARNESS_LOGIN_PASSWORD;
+  if (envUser && envPass) return { usuario: envUser, senha: envPass, fonte: 'env' };
+  if (!opt['realm-json'] || !opt.usuario) return null;
+  let realm;
+  try { realm = JSON.parse(fs.readFileSync(String(opt['realm-json']), 'utf8')); }
+  catch (e) { die(`não consegui ler o realm (${String(e.message).split('\n')[0]}).`); }
+  const nome = String(opt.usuario).toLowerCase();
+  const u = (realm.users || []).find((x) => String(x.username).toLowerCase() === nome || String(x.email || '').toLowerCase() === nome);
+  if (!u) die(`usuário "${opt.usuario}" não existe em ${opt['realm-json']}. Usuários: ${(realm.users || []).map((x) => x.username).join(', ') || '(nenhum)'}`);
+  const cred = (u.credentials || []).find((c) => c.type === 'password' && typeof c.value === 'string');
+  if (!cred) die(`"${u.username}" não tem senha em texto no realm (só hash ou nenhuma). Use HARNESS_LOGIN_USER/HARNESS_LOGIN_PASSWORD ou escale ao dev.`);
+  return { usuario: u.username, senha: cred.value, fonte: 'realm' };
+}
+
+// Preenche o formulário padrão do Keycloak e espera voltar ao app. Devolve null ou o motivo da falha.
+async function loginKeycloak(page, url, cred) {
+  const appOrigin = new URL(url).origin;
+  if (!isLoginPage(page.url())) return null;
+  const user = page.locator('#username, input[name="username"]').first();
+  try { await user.waitFor({ timeout: 20000 }); } catch { return 'formulário de login do Keycloak não apareceu (#username).'; }
+  await user.fill(cred.usuario);
+  await page.locator('#password, input[name="password"]').first().fill(cred.senha);
+  await Promise.all([
+    page.waitForURL((u) => u.origin === appOrigin && !isLoginPage(u.href), { timeout: 45000 }).catch(() => {}),
+    page.locator('#kc-login, input[type="submit"], button[type="submit"]').first().click(),
+  ]);
+  if (isLoginPage(page.url())) {
+    const msg = await page.locator('#input-error, .kc-feedback-text, .alert-error, [class*="error"]').first().innerText({ timeout: 2000 }).catch(() => '');
+    if (/update.?password|atualizar|required.?action|otp|totp/i.test(page.url() + ' ' + msg)) {
+      return 'o Keycloak pediu ação extra (trocar senha, OTP…) para esse usuário. Ajuste o usuário no realm ou escale ao dev.';
+    }
+    return `login recusado pelo Keycloak${msg ? `: ${msg.trim().slice(0, 160)}` : ''}.`;
+  }
+  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+  return null;
+}
+
+// Garante a página autenticada em `url`. Devolve { browser, context, page, via }.
+async function abrirAutenticado(chromium, url, ap, { headed = false, interativo = true } = {}) {
+  const appOrigin = new URL(url).origin;
+  let browser = await launch(chromium, headed);
+  let context = await contextoComSessao(browser, url, ap);
+  let page = await context.newPage();
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+  if (!isLoginPage(page.url())) return { browser, context, page, via: 'sessao-salva' };
+
+  const cred = credenciaisDev();
+  if (cred) {
+    // Contexto limpo: sessão velha pode atrapalhar o fluxo do Keycloak.
+    await context.close();
+    context = await browser.newContext({ viewport });
+    page = await context.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+    const falha = await loginKeycloak(page, url, cred);
+    if (!falha) {
+      await salvarSessao(context, page, url, ap);
+      if (page.url() !== url) await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
+      return { browser, context, page, via: `login-automatico (${cred.fonte})` };
+    }
+    console.error(`Login automático falhou: ${falha}`);
+  }
+
+  if (!interativo) {
+    await browser.close();
+    die('sem sessão válida e sem login automático. Rode o comando auth (com --realm-json/--usuario ou HARNESS_LOGIN_USER/PASSWORD) ou escale ao dev.');
+  }
+  if (!headed) {
+    await browser.close();
+    console.error('Sem sessão válida. Abrindo o navegador para você entrar com o usuário de desenvolvimento (até 5 min)…');
+    browser = await launch(chromium, true);
+    context = await browser.newContext({ viewport });
+    page = await context.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  }
+  await page.waitForURL((u) => u.origin === appOrigin && !isLoginPage(u.href), { timeout: 300000 })
+    .catch(() => die('o login não foi concluído em 5 minutos.'));
+  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+  await salvarSessao(context, page, url, ap);
+  if (page.url() !== url) await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
+  return { browser, context, page, via: 'login-manual' };
 }
 
 // ---------------------------------------------------------------- serialização (roda na página)
@@ -169,34 +301,10 @@ async function capturar() {
   const { url, out, nome = 'captura', 'data-dir': dataDir } = opt;
   if (!url || !out) die('capturar exige --url e --out.');
   const { chromium } = loadDeps(dataDir);
-  const host = new URL(url).host.replace(/[^\w.-]/g, '_');
-  const authFile = dataDir ? path.join(dataDir, 'auth', `${host}.json`) : null;
-  const hasAuth = authFile && fs.existsSync(authFile);
-  const appOrigin = new URL(url).origin;
-  const isLoginPage = (u) => /\/realms\/|\/protocol\/openid-connect\/|login-actions/.test(u);
-
-  let browser = await launch(chromium, !!opt.headed);
-  let context = await browser.newContext({ viewport, ...(hasAuth ? { storageState: authFile } : {}) });
-  let page = await context.newPage();
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
-
-  if (isLoginPage(page.url())) {
-    if (!opt.headed) {
-      // Sem sessão: reabre visível para o dev entrar.
-      await browser.close();
-      console.error('Sem sessão válida. Abrindo o navegador para você entrar com o usuário de desenvolvimento (até 5 min)…');
-      browser = await launch(chromium, true);
-      context = await browser.newContext({ viewport });
-      page = await context.newPage();
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    }
-    await page.waitForURL((u) => u.origin === appOrigin && !isLoginPage(u.href), { timeout: 300000 })
-      .catch(() => die('o login não foi concluído em 5 minutos.'));
-    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
-    if (authFile) { fs.mkdirSync(path.dirname(authFile), { recursive: true }); await context.storageState({ path: authFile }); }
-    if (page.url() !== url) await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
-  }
+  const ap = authPaths(url, dataDir);
+  const { browser, context, page, via } = await abrirAutenticado(chromium, url, ap,
+    { headed: !!opt.headed, interativo: !opt['sem-interativo'] });
+  console.error(`Sessão: ${via}`);
 
   if (opt.esperar) await page.waitForSelector(String(opt.esperar), { timeout: 30000 });
   if (opt.antes) {
@@ -232,6 +340,7 @@ async function capturar() {
   }
   const htmlPath = path.join(out, `${nome}.html`);
   fs.writeFileSync(htmlPath, out_html);
+  await salvarSessao(context, page, url, ap).catch(() => {}); // renova a sessão para a próxima
   await browser.close();
 
   console.log(JSON.stringify({
@@ -367,6 +476,31 @@ async function cssDe() {
   console.log(JSON.stringify({ para: opt.para, cssKB: Math.round(m[1].length / 1024) }));
 }
 
-const run = { capturar, screenshot, comparar, pecas, extrair, substituir, 'css-de': cssDe }[cmd];
-if (!run) die('comando: capturar | screenshot | comparar | pecas | extrair | substituir | css-de');
+async function auth() {
+  const { url, 'data-dir': dataDir } = opt;
+  if (!url || !dataDir) die('auth exige --url e --data-dir.');
+  const ap = authPaths(url, dataDir);
+  const { chromium } = loadDeps(dataDir);
+  if (opt.checar) {
+    const browser = await launch(chromium, false);
+    const context = await contextoComSessao(browser, url, ap);
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+    const valida = !isLoginPage(page.url());
+    await browser.close();
+    console.log(JSON.stringify({ valida, arquivo: ap.state }));
+    process.exit(valida ? 0 : 2);
+  }
+  if (!credenciaisDev()) die('auth precisa de --realm-json + --usuario, ou HARNESS_LOGIN_USER/HARNESS_LOGIN_PASSWORD.');
+  // Força login novo: apaga a sessão anterior.
+  for (const f of [ap.state, ap.session]) { try { fs.unlinkSync(f); } catch {} }
+  const { browser, page, via } = await abrirAutenticado(chromium, url, ap, { interativo: false });
+  const final = page.url();
+  await browser.close();
+  console.log(JSON.stringify({ ok: true, via, url: final, arquivo: ap.state }, null, 2));
+}
+
+const run = { auth, capturar, screenshot, comparar, pecas, extrair, substituir, 'css-de': cssDe }[cmd];
+if (!run) die('comando: auth | capturar | screenshot | comparar | pecas | extrair | substituir | css-de');
 run().catch((e) => die(e.stack || String(e)));
