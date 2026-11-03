@@ -58,10 +58,18 @@ Princípio do `CLAUDE.md`: apontar para a fonte, nunca duplicá-la. Não existe 
 node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" capturar \
   --url <url da rota> --out "<import>/original" --nome "<Tela> - base" \
   --data-dir "${CLAUDE_PLUGIN_DATA}" --viewport 1440x900 \
-  [--esperar "<seletor que indica tela pronta>"] [--antes <passos.mjs>]
+  --sem-interativo [--esperar "<seletor que indica tela pronta>"] [--antes <passos.mjs>]
 ```
 
-- **Login:** na primeira vez (ou com a sessão vencida) **o script abre uma janela do navegador** e espera o dev entrar com o usuário de desenvolvimento. **Avise o dev antes de rodar.** A sessão fica salva no diretório de dados do plugin, fora do repo; o script nunca recebe senha.
+- **Login — resolva antes de capturar, nunca na tela de login.** Não navegue nem preencha a tela do Keycloak você mesmo; o script cuida disso:
+  1. **Cheque a sessão salva:**
+     `node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" auth --url <url do app> --data-dir "${CLAUDE_PLUGIN_DATA}" --checar` → `"valida": true` (exit 0): vá direto para a captura.
+  2. **Inválida (exit 2): logue com o usuário de dev do realm**, sem ver a senha — o script lê do JSON do realm e não a imprime:
+     `node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" auth --url <url do app> --data-dir "${CLAUDE_PLUGIN_DATA}" --realm-json <platform/backend/src/Apps/Insurtech.AppHost/keycloak/realms/<realm>.json> --usuario <username>`
+     Escolha o realm e o usuário cujo perfil enxerga a tela (mesma regra do `/harness:verify-visual` §4). Se o dev já exportou `HARNESS_LOGIN_USER`/`HARNESS_LOGIN_PASSWORD`, basta `--url` e `--data-dir`.
+  3. **Capture com `--sem-interativo`** (comando abaixo): se a sessão cair no meio, o script tenta o login automático de novo; se não der, falha com motivo em vez de travar esperando alguém.
+  4. **Falhou** (senha recusada, usuário sem senha em texto no realm, Keycloak pediu troca de senha/OTP): pare e escale ao dev com a mensagem do script. Só sem `--sem-interativo` o script abre uma janela visível para o dev logar à mão (até 5 min) — **avise o dev antes**.
+  - A sessão (cookies, `localStorage` e `sessionStorage`, onde fica o token OIDC) fica em `${CLAUDE_PLUGIN_DATA}/auth/`, fora do repo, e é renovada a cada captura. Nunca escreva a senha em arquivo, relatório, log ou prompt; nunca crie usuário.
 - **`--antes`**: arquivo `export default async (page) => { … }` com os passos para chegar ao estado (abrir aba, aplicar filtro, abrir modal). Grave-o em `tmp/`, não no import.
 - **Largura estreita**: se a tela é responsiva, capture de novo com `--viewport 390x844` e `--nome "<Tela> - base - estreita"`.
 - **Doadores**: componente que a WI precisa e que existe em **outra** tela (ex.: um `broker-select` `compact`) → capture essa tela também (`--nome "doador - <componente>"`). É de lá que sai a marcação real.

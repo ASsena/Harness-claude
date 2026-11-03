@@ -82,7 +82,7 @@ Economia embutida:
 O `mockup-task` parte da tela **renderizada** do app, não do código: `scripts/capturar-tela.mjs` salva DOM + todo o CSS aplicado (inclusive o encapsulado do Angular e o do Material) + fontes num HTML que abre sozinho, idêntico ao app, e o mockup é a captura editada só na região da WI. `comparar` mede quanto o resto da tela mudou (alvo: ≤ 0,5%).
 
 - Usa o Edge ou o Chrome instalados; dependências (`playwright-core`, `pngjs`, `pixelmatch`) vão para o diretório de dados do plugin na primeira execução.
-- Login: na primeira captura abre uma janela para você entrar com o usuário de dev; a sessão fica salva fora do repo.
+- Login: automático com o usuário de dev do realm (`capturar-tela.mjs auth --realm-json ... --usuario ...`); a sessão (inclusive `sessionStorage`) fica salva fora do repo e é renovada a cada captura. Janela para login manual só como último recurso.
 - No app Claude, o mesmo arquivo é publicado como artefato para revisão — sem redesenho.
 
 ## Navegador (Playwright MCP)
