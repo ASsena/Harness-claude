@@ -34,14 +34,25 @@ Tudo fica com o prefixo do plugin:
 
 | O quê | Como chamar |
 | --- | --- |
-| Pipeline completo de uma WI | `claude --agent harness:pipeline-agent` |
-| Fatia nova numa WI já executada | `claude --agent harness:pipeline-agent "adicionar fatia wi-<id>: <demanda>"` |
-| Só planejar | `claude --agent harness:plan-task-agent` ou `/harness:plan-task <WI>` |
-| Mockup de tela de uma WI | roda dentro do `/harness:plan-task`; avulso: `/harness:mockup-task <WI>` |
+| **1. Preparar** uma WI (mockup, plano, pré-análise, ondas, portões) | `claude --agent harness:plan-task-agent "<WI>"` |
+| **2. Executar** a WI preparada (numa sessão nova) | `claude --agent harness:pipeline-agent "executar wi-<id>"` |
+| Fatia nova numa WI já executada | preparo: `claude --agent harness:plan-task-agent "adicionar fatia wi-<id>: <demanda>"` → execução: `claude --agent harness:pipeline-agent "executar wi-<id> adicional-<n>"` |
+| A branch andou depois do preparo | `claude --agent harness:plan-task-agent "revalidar wi-<id>"` |
+| Só o plano, sem o preparo completo | `/harness:plan-task <WI>` |
+| Mockup de tela de uma WI | roda dentro do preparo; avulso: `/harness:mockup-task <WI>` |
 | Conferir a tela contra o mockup | roda na graduação quando o plano tem `visual_reference`; avulso: `/harness:verify-visual <plano>` |
 | Apoio (carregadas pelas outras) | `harness:plan-for-cursor` (régua do plano), `harness:grilling` (perguntas uma por vez), `harness:domain-modeling` (vocabulário e ADR) |
 | Skills avulsas | `/harness:spec-task`, `/harness:audit-task`, `/harness:revise`, `/harness:execute-implement`… |
 | Subagentes | `harness:execute-task-agent`, `harness:graduation-agent`, `harness:code-reviewer-agent`, `harness:fix-task-agent`, `harness:visual-check-agent` |
+
+## Preparo × execução
+
+O ciclo de uma WI roda em **duas sessões**:
+
+1. **Preparo** (`plan-task-agent`): master em dia, branch, mockup + portão, plano, pré-análise, grafo de ondas + portão do plano, commit do plano. Entrega em `tmp/pipeline/wi-<id>/`: `estado.md` (`pronto para execução`), `preflight.md`, `ondas.md`.
+2. **Execução** (`pipeline-agent`): confere a entrega (estado, portões registrados, plano intacto, `HEAD` igual ao do preparo), libera `platform/**` localmente, implementa por ondas e chama o `graduation-agent`. Não planeja, não faz mockup, não edita o plano — se achar 🔴/🟡 no plano, para e pede `revalidar wi-<id>` no preparo.
+
+Cada sessão é um run próprio no cronômetro e nos tokens; a execução começa com contexto limpo, sem precisar de `/clear`.
 
 ## Trava: master e repositório remoto
 
@@ -59,11 +70,11 @@ Requer `node` no PATH (o mesmo do Playwright MCP).
 
 ## Tempo de cada fase
 
-Toda execução do `pipeline-agent` grava a duração de cada fase em
+Toda sessão de preparo (`plan-task-agent`) e de execução (`pipeline-agent`) grava a duração de cada fase em
 `%USERPROFILE%\.claude\brixbroker\pipeline-tempos.csv` (separador `;`, abre no Excel):
 `run_id;wi;fase;tipo;inicio;fim;duracao_seg;duracao;status;nota`.
 O tempo é carimbado por `scripts/log-fase.ps1` (relógio do sistema, não do modelo).
-`tipo = espera` marca o tempo esperando o dev nos portões e conflitos.
+`tipo = espera` marca o tempo esperando o dev nos portões e conflitos. O preparo e a execução são runs separados (`nota` = `preparo` / `execução` na fase `pipeline`).
 Resumo de um run: `powershell -File scripts/log-fase.ps1 -Acao resumo -WorkDir tmp/pipeline/wi-<id>`.
 
 ## Tokens
@@ -74,7 +85,7 @@ Durante um run do pipeline, hooks somam os tokens de cada subagente (`SubagentSt
 Resumo: `node scripts/tokens.mjs resumo --workdir tmp/pipeline/wi-<id>`. Fora do pipeline, os hooks não registram nada.
 
 Economia embutida:
-- **Pausa planejada:** depois do plano aprovado, o pipeline pede `/clear` + `continuar wi-<id>`; a execução começa só com o plano, sem o contexto do planejamento.
+- **Sessões separadas:** a execução roda numa sessão nova e lê só `estado.md`, `preflight.md`, `ondas.md` e o plano — nada do contexto do planejamento.
 - **Captura nunca lida inteira:** o hook `guarda-leitura` bloqueia `Read` em capturas de tela; o agente usa `pecas` / `extrair` / `substituir` / `css-de` do `capturar-tela.mjs`.
 
 ## Captura da tela real (mockups)

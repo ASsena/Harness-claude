@@ -33,7 +33,8 @@ você passa **caminhos**, não relatórios colados no prompt:
 
 | Arquivo | Quem grava |
 |---|---|
-| `preflight.md`, `impl-*.md` | pipeline-agent / execute-task-agent (já existem) |
+| `preflight.md`, `ondas.md` | plan-task-agent, no preparo (já existem) |
+| `impl-*.md` | execute-task-agent (já existem) |
 | `review-R<N>.md` | code-reviewer-agent |
 | `visual-R<N>.md`, `visual/`, `visual-servidores.md` | visual-check-agent (só com `visual_reference`) |
 | `fix-R<N>-g<k>.md` | fix-task-agent (um por grupo paralelo) |
