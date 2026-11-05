@@ -14,8 +14,9 @@ Automatiza a "verificação manual com o mockup aberto ao lado" que os planos de
 
 - **Plano** — o `visual_reference:` do frontmatter aponta o HTML da Decisão. Sem `visual_reference` e sem fatia de tela citando import em `_imports/claude-design/`: devolva "sem verificação visual" e pare.
 - **Fontes das decisões**, nesta precedência: a §Especificação visual da spec (`backlog/tasks/<id>-<slug>.md`) → o `notes.md` do import → o HTML da Decisão. A spec é a fonte; o import é insumo (ADR-0011).
-- **Pasta de trabalho** `tmp/pipeline/wi-<id>/` e o **número da rodada**, informados pelo orquestrador. Avulsa: crie a pasta e use rodada 1.
+- **Pasta de trabalho** `tmp/pipeline/wi-<id>/` e a **rodada**, informados pelo orquestrador. Avulsa: crie a pasta e use rodada 1.
 - **Rodada N > 1:** leia `visual-R<N-1>.md` e os `fix-R<N-1>-*.md` para o de-para (§7).
+- **Rodada `M<n>-r<r>`** (conflito de merge resolvido em tela): confira só a região dos arquivos de conflito do `merge-M<n>.md`; saída `visual-M<n>-r<r>.md`, IDs `VM<n>.<r>-XX`.
 
 ---
 
@@ -55,7 +56,9 @@ O ambiente não sobe (Docker parado, porta ocupada por outra coisa, build quebra
 `broker-web` e `admin-web` usam Keycloak com Authorization Code + PKCE: a tela de usuário e senha é a do Keycloak, alcançada pelo proxy `/auth` do `ng serve`.
 
 - Use um **usuário de desenvolvimento** definido nos JSON de realm do AppHost (`platform/backend/src/Apps/Insurtech.AppHost/keycloak/realms/`), do realm e do perfil que enxergam a tela.
-- Nunca use credencial real, nunca crie usuário, nunca escreva a senha em relatório, log ou prompt de outro agente.
+- **De onde vem a senha:** primeiro das variáveis `HARNESS_LOGIN_USER`/`HARNESS_LOGIN_PASSWORD`, se o dev as exportou; senão, do JSON do realm, lendo **só** o usuário escolhido. Ao contrário do `capturar-tela.mjs auth` (que loga sem mostrar a senha), aqui o login é pelo Playwright MCP e a senha passa pela ferramenta de digitação do navegador — é o único lugar onde ela pode aparecer.
+- O navegador do MCP roda em perfil isolado (`--isolated`): a sessão salva pelo `capturar-tela.mjs` não é reaproveitada, e cada rodada faz login de novo.
+- Nunca use credencial real, nunca crie usuário, nunca escreva a senha em relatório, log, arquivo ou prompt de outro agente.
 - Não há usuário de dev com senha para esse perfil? Escale ao dev; não contorne.
 
 ---

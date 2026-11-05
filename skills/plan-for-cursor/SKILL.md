@@ -161,11 +161,11 @@ O que só quem escreve o plano sabe, e por isso não pode ficar para o executor:
 - **Seletores/contratos novos:** os nomes que o diff vai criar (rota, método de porta, código de erro, campo de DTO), para a pré-análise conferir só o delta.
 - Paths/superfícies e iteração/gate: derivados das fatias e do passe 5.
 
-> Caso que originou a seção (2026-09-25): os planos da WI 3551 e o plano de correção dela saíram sem manifesto. O Kilo e o Codex reclamaram, um em cada rodada, e cada um escreveu o seu. O owner já tinha visto essa reclamação várias vezes. A causa era esta skill: ela nunca tinha mencionado o manifesto, então ele só entrava nos planos quando eu lembrava.
+> Caso que originou a seção (2026-09-25): os planos da WI 3551 e o plano de correção dela saíram sem manifesto. O Kilo e o Codex reclamaram, um em cada rodada, e cada um escreveu o seu. O dev já tinha visto essa reclamação várias vezes. A causa era esta skill: ela nunca tinha mencionado o manifesto, então ele só entrava nos planos quando eu lembrava.
 
 ## Seção obrigatória no plano
 
-Todo plano fecha com esta seção — é o que torna a disciplina **auditável pelo owner** em vez de privada:
+Todo plano fecha com esta seção — é o que torna a disciplina **auditável pelo dev** em vez de privada:
 
 ```markdown
 # Verificações feitas antes de entregar este plano
@@ -188,4 +188,4 @@ Se algum passe não foi feito, **diga qual e por quê** em vez de omitir. Silên
 
 ## O que este arquivo não cobre
 
-Formato de ADR (`domain-modeling`), veredito de auditoria (`revise`, `review-pr`), e a decisão de **se** deve haver plano — que é do owner.
+Formato de ADR (`domain-modeling`), veredito de auditoria (`revise`, `review-pr`), e a decisão de **se** deve haver plano — que é do dev.

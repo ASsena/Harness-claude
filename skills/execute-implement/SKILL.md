@@ -13,7 +13,7 @@ Para plano não trivial, prefira uma conversa nova com apenas o caminho do plano
 
 ## 1. Identificar o plano
 
-**Primeira ação: marque o timestamp de início** (`Get-Date -Format s`). Ele vai para o cabeçalho do relatório (que o `/execute-review` gera) e para o `rodadas.csv`. Não estime a duração no fim — leia os dois carimbos.
+**Uso avulso — primeira ação: marque o timestamp de início** (`Get-Date -Format s`). Ele vai para o cabeçalho do relatório (que o `/execute-review` gera) e para o `rodadas.csv`. Não estime a duração no fim — leia os dois carimbos. **Dentro do pipeline** (`execute-task-agent` com `preflight.md` no prompt) não marque nada: o tempo é do cronômetro do pipeline (`log-fase.ps1`).
 
 Nesta ordem:
 
@@ -53,7 +53,7 @@ Precedente que motivou a regra (SH-4 → SH-13): o `throw;` após `Log.Fatal` fo
 
 Ao terminar a implementação, registre e repasse:
 
-- **Timestamp de início** (do passo 1).
+- **Timestamp de início** (do passo 1 — só no uso avulso).
 - **Resultado da pré-análise** (matriz, resolução de achados).
 - **O que foi implementado** (bullets).
 - **Arquivos alterados** (`git diff --stat`).
@@ -64,4 +64,4 @@ Ao terminar a implementação, registre e repasse:
   - **`[visto]` é obrigatório no teste que o plano elege como discriminante da fatia.** Sem ele o item não fecha.
   - Não rotule a seção inteira de uma vez: o rótulo é por teste, porque o erro é por teste.
 
-Esse material é insumo direto do relatório que o `/execute-review` vai montar. Não commite ainda — o commit só acontece depois do gate verde.
+Esse material é insumo direto do relatório que o `/execute-review` vai montar. Não commite — no pipeline, o commit é do `harness:graduation-agent` (depois do review aprovado); avulsa, depois do gate verde.

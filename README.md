@@ -50,7 +50,18 @@ Tudo fica com o prefixo do plugin:
 O ciclo de uma WI roda em **duas sessões**:
 
 1. **Preparo** (`plan-task-agent`): master em dia, branch, mockup + portão, plano, pré-análise, grafo de ondas + portão do plano, commit do plano. Entrega em `tmp/pipeline/wi-<id>/`: `estado.md` (`pronto para execução`), `preflight.md`, `ondas.md`.
-2. **Execução** (`pipeline-agent`): confere a entrega (estado, portões registrados, plano intacto, `HEAD` igual ao do preparo), libera `platform/**` localmente, implementa por ondas e chama o `graduation-agent`. Não planeja, não faz mockup, não edita o plano — se achar 🔴/🟡 no plano, para e pede `revalidar wi-<id>` no preparo.
+2. **Execução** (`pipeline-agent`): confere a entrega com `scripts/conferir-entrega.mjs` (estado, portões registrados, plano intacto, SHA-base coerente, `HEAD` igual ao do preparo), confere se a trava de `platform/**` está liberada, implementa por ondas e chama o `graduation-agent`. Não planeja, não faz mockup, não edita o plano — se achar 🔴/🟡 no plano, para e pede `revalidar wi-<id>` no preparo.
+
+O preparo faz **dois commits**: insumos (spec criada/alterada e import do mockup) e depois o plano. O SHA-base do manifesto é o `HEAD` entre os dois — o único commit entre ele e a execução é o do plano, só em `.cursor/plans/**`.
+
+## Trava de `platform/**` — só o dev libera
+
+O `.claude/settings.json` do repositório nega `Edit`/`Write`/`NotebookEdit` em `platform/**`. **Liberar e restaurar a trava é sempre manual, do dev.** Nenhum agente nem skill edita esse arquivo, roda `git update-index --skip-worktree` nele ou o restaura.
+
+- Trava ativa = nada grava em `platform/**` por nenhum meio — `Write`/`Edit`, shell ou script. Com ela ativa, o mockup é montado em `tmp/mockup/` e só vai para `_imports/` depois que o dev libera.
+- O preparo pergunta antes de gravar o import; a execução confere antes da primeira onda e não começa com a trava ativa.
+- A mudança do dev em `.claude/settings.json` não conta como árvore suja e nunca entra em stage: todo commit confere `git diff --cached --name-only` antes.
+- No fim do preparo e da execução, o relatório diz se a trava ficou liberada, para o dev restaurar antes de qualquer push.
 
 Cada sessão é um run próprio no cronômetro e nos tokens; a execução começa com contexto limpo, sem precisar de `/clear`.
 
@@ -61,11 +72,14 @@ O plugin traz um hook (`hooks/trava-remoto.mjs`, roda antes de cada comando de s
 | Situação | O que acontece |
 | --- | --- |
 | `git commit`/`merge`/`cherry-pick`/`revert`/`rebase`/`pull` com a `master` (ou `main`) em checkout | **bloqueado** |
-| `git push` que atinge a `master` (`HEAD:master`, `--all`, push sem refspec estando na master…) ou concluir PR na master via MCP | **bloqueado** |
+| `git push` que atinge a `master` (`HEAD:master`, `--all`, push sem refspec estando na master…), ou ferramenta MCP de push/merge/complete cujo input aponta a `master` como alvo | **bloqueado** |
 | `git push` de outra branch, `az repos/boards/pipelines … create/update/delete…`, `az rest` não-GET, `gh pr create/merge/comment…`, `gh api` não-GET, HTTP não-GET para `dev.azure.com`, ferramenta MCP do Azure DevOps/GitHub que não seja get/list | **pede confirmação** — o agente explica o motivo antes, e o diálogo de permissão é a pergunta |
 | `git fetch`, `pull --ff-only` na master, `az … list/show`, `az rest` GET, MCP get/list | passa |
 
 A confirmação aparece mesmo com o comando liberado em `allowedTools`. Em sessão sem ninguém para responder (`claude -p`), a alteração é negada.
+Concluir um PR pelo MCP normalmente só leva o id do PR, sem o branch alvo no input: nesse caso o hook **pede confirmação** (não bloqueia) — leia o alvo do PR no diálogo antes de aceitar.
+
+Testes do hook: `node --test hooks/trava-remoto.test.mjs` (cria repositórios git temporários; não toca no seu).
 Requer `node` no PATH (o mesmo do Playwright MCP).
 
 ## Tempo de cada fase
@@ -74,7 +88,7 @@ Toda sessão de preparo (`plan-task-agent`) e de execução (`pipeline-agent`) g
 `%USERPROFILE%\.claude\brixbroker\pipeline-tempos.csv` (separador `;`, abre no Excel):
 `run_id;wi;fase;tipo;inicio;fim;duracao_seg;duracao;status;nota`.
 O tempo é carimbado por `scripts/log-fase.ps1` (relógio do sistema, não do modelo).
-`tipo = espera` marca o tempo esperando o dev nos portões e conflitos. O preparo e a execução são runs separados (`nota` = `preparo` / `execução` na fase `pipeline`).
+`tipo = espera` marca o tempo esperando o dev: portões, escalações e qualquer outra pergunta (`pergunta`). O preparo e a execução são runs separados (`nota` = `preparo` / `execução` na fase `pipeline`).
 Resumo de um run: `powershell -File scripts/log-fase.ps1 -Acao resumo -WorkDir tmp/pipeline/wi-<id>`.
 
 ## Tokens

@@ -1,14 +1,17 @@
 ---
 name: plan-task
 description: Lê um Work Item do Azure Boards pelo número (descrição, critérios de aceite, anexos, comentários e itens ligados), analisa o pedido contra a arquitetura vigente, resolve com o dev tudo que ficar abaixo de 95% de certeza e produz o plano do Cursor em `.cursor/plans/*.plan.md`, commitado na branch de trabalho. Use quando o dev pedir "/plan-task" seguido do número da WI.
-metadata:
-  argument-hint: "nº do Work Item do Azure Boards (ex.: 2538)"
-  disable-model-invocation: true
+argument-hint: "nº do Work Item do Azure Boards (ex.: 2538)"
 ---
 
 Transforma um Work Item em **plano executável pelo Cursor**. Entra um número; sai um `.cursor/plans/wi_<id>_<slug>.plan.md` commitado, mais o `backlog/tasks/<id>-<slug>.md` quando ele ainda não existir.
 
-**O que esta skill não faz:** não escreve código de produto (`CLAUDE.md` §2 — não há exceção para "só uma string" nem para "fix trivial"), não roda `/execute`, não fecha a WI no board. O ciclo completo é `/plan-task` → `/execute` (Cursor) → `/revise`.
+**O que esta skill não faz:** não escreve código de produto (`CLAUDE.md` §2 — não há exceção para "só uma string" nem para "fix trivial"), não roda `/execute`, não fecha a WI no board.
+
+**Dois usos, dois ciclos:**
+
+- **Dentro do `harness:plan-task-agent`** (o caminho normal): o agente manda nos portões, nos commits (§6 dele, em dois commits) e no próximo passo (`harness:pipeline-agent` numa sessão nova). Onde este arquivo e o agente divergirem nesses três pontos, vale o agente.
+- **Avulsa** (`/harness:plan-task <WI>`): o ciclo é `/plan-task` → `/execute` (Cursor) → `/revise`, e valem o §6 e o §7 daqui.
 
 ---
 
@@ -77,7 +80,7 @@ Antes de desenhar qualquer fatia, percorra a hierarquia do `CLAUDE.md` §3 pelas
 
 ## 3a. Mudança visual? — mockup antes das fatias
 
-Se a WI mexe em tela (critérios no §1 da skill `mockup-task`), carregue a skill `harness:mockup-task` com a tool Skill e execute-a nesta thread, reaproveitando a WI já lida. O mockup precisa estar **aprovado pelo dev** antes de você escrever as fatias: sem aprovação, o plano não é gravado. As decisões fechadas no mockup entram em "Decisões (não reabrir)".
+Se a WI mexe em tela (critérios no §1 da skill `mockup-task`), carregue a skill `harness:mockup-task` com a tool Skill e execute-a nesta thread, reaproveitando a WI já lida. O mockup precisa estar **aprovado pelo dev** antes de você escrever as fatias: sem aprovação, o plano não é gravado. Há **um** portão do mockup: dentro do `plan-task-agent` é o 3.1 dele; avulsa, é o §5 da `mockup-task`. Não pergunte duas vezes. As decisões fechadas no mockup entram em "Decisões (não reabrir)".
 
 ---
 
@@ -133,7 +136,7 @@ Corpo, na ordem:
 1. **Fonte canônica** — link para `backlog/tasks/<id>-<slug>.md` e para os ADRs aplicáveis, dizendo **quem vence onde divergirem** (a spec vence o ADR quando o ADR ficou para trás; diga isso explicitamente, como no plano da 2538).
 2. **Decisões (não reabrir)** — o que foi fechado com o dev no §4, uma linha cada, com o porquê. É o que impede o Cursor de "melhorar" a decisão.
 3. **Arquitetura** — o desenho; diagrama quando o fluxo tiver mais de dois saltos.
-3a. **Manifesto de execução** — obrigatório. O formato vem de `.cursor/commands/execute.md`, e as regras de preenchimento estão na seção "Manifesto de execução" da `plan-for-cursor`. O SHA-base é o `HEAD` na hora de commitar o plano.
+3a. **Manifesto de execução** — obrigatório. O formato vem de `.cursor/commands/execute.md`, e as regras de preenchimento estão na seção "Manifesto de execução" da `plan-for-cursor`. O SHA-base é o `HEAD` logo antes do commit do plano, depois do commit de insumos (§6).
 4. **Fatias** — cada uma com arquivos e caminhos reais, portas que já existem (verificadas, passe 1 da `plan-for-cursor`) e as que o plano manda criar. Fatia que mexe em tela aponta para a §Especificação visual da spec e para o import aprovado, e lista os componentes a reaproveitar (com caminho e variação) e os novos — o Cursor não escolhe outros.
 5. **Testes** — por teste: a linha de produção que a asserção observa, o caminho até ela, ou o fixture delegado com propriedade + discriminante.
 6. **Gate por gatilho** — derivado de `.cursor/rules/110-cursor-workflow.mdc` §"Gate de pronto" e `060` §"Pronto ≠ `--filter`" (**abra os dois**), dizendo qual gatilho disparou e **qual não disparou, e por quê**.
@@ -151,8 +154,13 @@ Duas fronteiras que o plano precisa dizer em voz alta, porque o Cursor erra nela
 O plano só existe de verdade depois de commitado: plano não commitado é sobrescrito pelo primeiro `git merge` e some sem aviso (`plan-for-cursor` §7).
 
 1. **Confira a branch corrente.** `master` **não aceita push direto** (TF402455) e nem deve receber o plano: crie `feature/wi-<id>-<slug>` a partir dela — é o nome que habilita a rastreabilidade que o `/audit-task` usa depois. Se já estiver numa branch de trabalho, commite nela.
-2. **Commite** o `.cursor/plans/*.plan.md`, quando materializado o `backlog/tasks/<id>-<slug>.md` e, quando houve mockup, a pasta do import aprovado em `platform/frontend/_imports/claude-design/wi-<id>-<slug>/<data>/` (o dev já liberou a trava de escrita de `platform/**` para o mockup). Nada mais entra nesse commit: edição de harness, skill, hook ou doc de governança vai em **branch separada**, mesmo que feita nesta sessão.
-3. **Não faça push nem abra PR por iniciativa própria** — pergunte. Se o dev pedir, confirme depois com `git log` local × `origin/<branch>` que o push realmente saiu.
+2. **Dois commits, nesta ordem, stage por nome:**
+   1. **Insumos** — o `backlog/tasks/<id>-<slug>.md` quando foi **criado ou alterado** nesta sessão (materializado no §2 **ou** com a §Especificação visual escrita pela `mockup-task` §6) e, quando houve mockup, a pasta do import aprovado em `platform/frontend/_imports/claude-design/wi-<id>-<slug>/<data>/`.
+   2. **Plano** — só o `.cursor/plans/*.plan.md`. O SHA-base do manifesto é o `git rev-parse HEAD` **logo antes deste commit** (depois do commit de insumos): assim o único commit entre o SHA-base e a execução é o do plano, só em `.cursor/plans/**`, como o manifesto afirma (`plan-for-cursor`, "Manifesto de execução").
+
+   Nada mais entra nesses commits: edição de harness, skill, hook ou doc de governança vai em **branch separada**, mesmo que feita nesta sessão. **`.claude/settings.json` nunca entra em stage** — confira `git diff --cached --name-only` antes de cada commit.
+3. **Trava de `platform/**`:** quem libera e restaura é só o dev. Com a trava ativa, nada grava em `platform/**` — nem pelo shell nem por script; se o import do mockup precisar entrar, pare e peça ao dev para liberar.
+4. **Não faça push nem abra PR por iniciativa própria** — pergunte. Se o dev pedir, confirme depois com `git log` local × `origin/<branch>` que o push realmente saiu.
 
 ---
 
@@ -165,6 +173,6 @@ Diga ao dev, em poucas linhas:
 - as perguntas do §4 e o que foi decidido em cada uma;
 - o que ficou **fora** do escopo de propósito;
 - o gate que o plano exige e o que ele dispensa, com o motivo;
-- próximo passo: `/execute` no Cursor, depois `/revise`.
+- próximo passo: avulsa, `/execute` no Cursor e depois `/revise`; dentro do `plan-task-agent`, quem diz o próximo passo é o agente (pipeline-agent numa sessão nova).
 
 Se durante a análise apareceu algo que não é desta WI (dívida vizinha, gap de outra spec), **não** enfie no plano: proponha WI nova via `/spec-task`.

@@ -105,7 +105,7 @@ Nunca invente cor, fonte, espaçamento ou raio fora dos tokens. Valor que o tema
 
 **Editar:**
 
-- Copie `"<Tela> - base.html"` para `"<Tela> - Decisão.html"` pelo shell (`cp`/`Copy-Item`) e **mexa só na região que a WI muda**, com `extrair` → editar o fragmento → `substituir`. O resto da página fica como capturado.
+- Copie `"<Tela> - base.html"` para `"<Tela> - Decisão.html"` pelo shell (`cp`/`Copy-Item`) e **mexa só na região que a WI muda**, com `extrair` → editar o fragmento → `substituir`. O resto da página fica como capturado. Com a trava de `platform/**` ativa, faça tudo isso na cópia de trabalho em `tmp/mockup/<import>/` (seção "Trava" abaixo).
 - Peça vinda de doador: `extrair` a instância no arquivo do doador e rode `css-de --arquivo <doador> --para <Decisão>` uma vez (regras duplicadas não fazem mal; regras faltando quebram o visual).
 - Marque cada bloco com atributos, sem mudar layout: `data-componente="<seletor broker-* ou caminho>"`, `data-variacao="..."`, `data-novo="<nome proposto>"`. É o que o plano e o `/verify-visual` leem.
 - Anotações: com `substituir --seletor "body > script:last-of-type" --modo antes`, acrescente um botão fixo "mostrar anotações" (`position: fixed`, escondido por padrão no layout) que contorna cada bloco com *reaproveitado: X* ou *novo: Y*. Nada além disso é injetado.
@@ -136,7 +136,11 @@ platform/frontend/_imports/claude-design/wi-<id>-<slug>/<AAAA-MM-DD>/
     assets/                            ← fontes e imagens que a captura baixou
 ```
 
-**Escrita em `platform/**` está travada** por `.claude/settings.json`. O dev libera a trava quando chama um agente que usa esta skill. Se o `Write` for negado, **pare e peça ao dev para liberar** — nunca contorne por shell (`CLAUDE.md` §2). O script de captura grava direto no `--out`; se a trava estiver ativa, capture em `tmp/mockup/` e copie para o import depois que o dev liberar.
+**Trava.** Escrita em `platform/**` está travada por `.claude/settings.json`, e **quem libera e restaura é só o dev** — você nunca edita esse arquivo. Trava ativa = **nada** grava em `platform/**`, por **nenhum** meio: nem `Write`/`Edit`, nem shell (`cp`, `Copy-Item`), nem script (`capturar-tela.mjs` com `--out`/`--arquivo`/`--saida` dentro de `platform/**`) — contornar pelo shell é contornar a trava (`CLAUDE.md` §2). Por isso:
+
+1. Confira o `deny` do `.claude/settings.json` (leitura) antes do §3.
+2. Trava ativa: monte o import inteiro em `tmp/mockup/<import>/` (mesma estrutura de pastas) — captura, edição, comparação e artefato funcionam iguais ali.
+3. Para levar o import ao lugar definitivo, peça ao dev para liberar a trava (dentro do `plan-task-agent`, ele pergunta; avulsa, pergunte você) e só depois copie `tmp/mockup/<import>/` para `platform/frontend/_imports/claude-design/…`.
 
 **O `notes.md`**, no formato dos imports existentes:
 
@@ -184,7 +188,7 @@ Apresente ao dev, curto:
 - divergências entre o print anexado e o design system, e qual lado o mockup seguiu;
 - o que foi decidido por ser fato do repo, e o que ainda é pergunta.
 
-Perguntas pendentes seguem a régua dos 95%: **uma por vez, sempre com recomendação**. Itere até o dev aprovar.
+Perguntas pendentes seguem a régua dos 95%: **uma por vez, sempre com recomendação**. Itere até o dev aprovar. Dentro do `plan-task-agent`, esta aprovação **é** o portão 3.1 dele — apresente o material uma vez só, lá.
 
 **Sem aprovação, o `/plan-task` não grava o plano.** Mockup em rascunho não entra em commit.
 
@@ -209,4 +213,6 @@ Ao `/plan-task` (ou ao dev, quando avulsa):
 - componentes reaproveitados (com caminho), variações e componentes novos;
 - decisões fechadas com o dev, uma linha cada — viram "Decisões (não reabrir)" no plano.
 
-Avulsa, não commite sozinha: pergunte se vai para a branch da WI (`feature/wi-<id>-<slug>`). Dentro do `/plan-task`, o commit é o dele (§6 de lá).
+Avulsa, não commite sozinha: pergunte se vai para a branch da WI (`feature/wi-<id>-<slug>`). Dentro do `/plan-task`, o commit é o dele (§6 de lá) — e a spec alterada no §6 desta skill entra no commit de insumos, mesmo quando o arquivo já existia.
+
+**Servidores** que você subiu para capturar: dentro do `plan-task-agent`, registre-os em `tmp/pipeline/wi-<id>/servidores-preparo.md` (ele derruba no fim do preparo); avulsa, derrube-os ao terminar.
