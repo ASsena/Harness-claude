@@ -125,11 +125,12 @@ todos:
     content: "Gate 110: <suítes que os gatilhos exigem>"
     status: pending
 isProject: false
-visual_reference: "platform/frontend/_imports/claude-design/wi-<id>-<slug>/<data>/original/<Tela> - Decisão.html"  # só quando houve mockup
+visual_reference: "<URL do artefato do mockup>"  # só quando houve mockup
+visual_local: "tmp/mockup/wi-<id>-<slug>/<data>/original/<Tela> - Decisão.html"  # cópia de trabalho local, fora do Git
 ---
 ```
 
-`visual_reference` é o que liga a verificação visual (`/verify-visual`) na graduação: sem ele, a tela não é conferida no navegador. Modelo real: `.cursor/plans/wi_3227_sidebar_menu_conta.plan.md`.
+`visual_reference` é o que liga a verificação visual (`/verify-visual`) na graduação: sem ele, a tela não é conferida no navegador. Ele aponta para o artefato do mockup (o único mockup — não há cópia no repo); `visual_local` é a pasta de trabalho de onde o artefato foi publicado, que a verificação usa quando existe na máquina. Planos antigos podem ter `visual_reference` apontando para `_imports/` — continuam valendo. Modelo real: `.cursor/plans/wi_3227_sidebar_menu_conta.plan.md`.
 
 Corpo, na ordem:
 
@@ -137,7 +138,7 @@ Corpo, na ordem:
 2. **Decisões (não reabrir)** — o que foi fechado com o dev no §4, uma linha cada, com o porquê. É o que impede o Cursor de "melhorar" a decisão.
 3. **Arquitetura** — o desenho; diagrama quando o fluxo tiver mais de dois saltos.
 3a. **Manifesto de execução** — obrigatório. O formato vem de `.cursor/commands/execute.md`, e as regras de preenchimento estão na seção "Manifesto de execução" da `plan-for-cursor`. O SHA-base é o `HEAD` logo antes do commit do plano, depois do commit de insumos (§6).
-4. **Fatias** — cada uma com arquivos e caminhos reais, portas que já existem (verificadas, passe 1 da `plan-for-cursor`) e as que o plano manda criar. Fatia que mexe em tela aponta para a §Especificação visual da spec e para o import aprovado, e lista os componentes a reaproveitar (com caminho e variação) e os novos — o Cursor não escolhe outros.
+4. **Fatias** — cada uma com arquivos e caminhos reais, portas que já existem (verificadas, passe 1 da `plan-for-cursor`) e as que o plano manda criar. Fatia que mexe em tela aponta para a §Especificação visual da spec (que tem os valores) e para o artefato do mockup aprovado (referência visual), e lista os componentes a reaproveitar (com caminho e variação) e os novos — o Cursor não escolhe outros.
 5. **Testes** — por teste: a linha de produção que a asserção observa, o caminho até ela, ou o fixture delegado com propriedade + discriminante.
 6. **Gate por gatilho** — derivado de `.cursor/rules/110-cursor-workflow.mdc` §"Gate de pronto" e `060` §"Pronto ≠ `--filter`" (**abra os dois**), dizendo qual gatilho disparou e **qual não disparou, e por quê**.
 7. **Verificações feitas antes de entregar este plano** — a tabela obrigatória da `plan-for-cursor`.
@@ -155,11 +156,11 @@ O plano só existe de verdade depois de commitado: plano não commitado é sobre
 
 1. **Confira a branch corrente.** `master` **não aceita push direto** (TF402455) e nem deve receber o plano: crie `feature/wi-<id>-<slug>` a partir dela — é o nome que habilita a rastreabilidade que o `/audit-task` usa depois. Se já estiver numa branch de trabalho, commite nela.
 2. **Dois commits, nesta ordem, stage por nome:**
-   1. **Insumos** — o `backlog/tasks/<id>-<slug>.md` quando foi **criado ou alterado** nesta sessão (materializado no §2 **ou** com a §Especificação visual escrita pela `mockup-task` §6) e, quando houve mockup, a pasta do import aprovado em `platform/frontend/_imports/claude-design/wi-<id>-<slug>/<data>/`.
+   1. **Insumos** — o `backlog/tasks/<id>-<slug>.md` quando foi **criado ou alterado** nesta sessão (materializado no §2 **ou** com a §Especificação visual escrita pela `mockup-task` §6). O mockup não entra em commit: ele é o artefato.
    2. **Plano** — só o `.cursor/plans/*.plan.md`. O SHA-base do manifesto é o `git rev-parse HEAD` **logo antes deste commit** (depois do commit de insumos): assim o único commit entre o SHA-base e a execução é o do plano, só em `.cursor/plans/**`, como o manifesto afirma (`plan-for-cursor`, "Manifesto de execução").
 
    Nada mais entra nesses commits: edição de harness, skill, hook ou doc de governança vai em **branch separada**, mesmo que feita nesta sessão. **`.claude/settings.json` nunca entra em stage** — confira `git diff --cached --name-only` antes de cada commit.
-3. **Trava de `platform/**`:** quem libera e restaura é só o dev. Com a trava ativa, nada grava em `platform/**` — nem pelo shell nem por script; se o import do mockup precisar entrar, pare e peça ao dev para liberar.
+3. **Trava de `platform/**`:** quem libera e restaura é só o dev. O planejamento não grava nada em `platform/**` — nem pelo shell nem por script.
 4. **Não faça push nem abra PR por iniciativa própria** — pergunte. Se o dev pedir, confirme depois com `git log` local × `origin/<branch>` que o push realmente saiu.
 
 ---
@@ -169,7 +170,7 @@ O plano só existe de verdade depois de commitado: plano não commitado é sobre
 Diga ao dev, em poucas linhas:
 
 - caminho do plano e as fatias, na ordem;
-- quando houve mockup, o caminho do HTML aprovado e quantos componentes foram reaproveitados × criados;
+- quando houve mockup, o link do artefato aprovado e quantos componentes foram reaproveitados × criados;
 - as perguntas do §4 e o que foi decidido em cada uma;
 - o que ficou **fora** do escopo de propósito;
 - o gate que o plano exige e o que ele dispensa, com o motivo;

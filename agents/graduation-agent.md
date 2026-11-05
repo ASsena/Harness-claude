@@ -350,7 +350,7 @@ monte a lista de projetos **seguindo a rule `110-cursor-workflow.mdc`, seção
 - Tema tocado → `npm run check:theme-tokens`.
 
 **Mockups não são código.** Arquivos em `platform/frontend/_imports/**`
-(imports do `mockup-task`) não fazem parte de nenhuma lib/app e, sozinhos,
+(imports antigos de mockup; os novos são artefatos e não entram no repo) não fazem parte de nenhuma lib/app e, sozinhos,
 não disparam o gate de frontend — a menos que a rule 110 diga o contrário;
 nesse caso ela prevalece e você registra isso no escopo.
 

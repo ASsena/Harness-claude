@@ -73,17 +73,12 @@ O `.claude/settings.json` versionado nega `Edit`/`Write`/`NotebookEdit` em
 nunca edita `.claude/settings.json`, nunca roda `git update-index
 --skip-worktree`/`--no-skip-worktree` nele e nunca o restaura.
 
-- **Trava ativa = nada grava em `platform/**`, por nenhum meio**: nem
+- **O preparo não grava nada em `platform/**`**, por nenhum meio: nem
   `Write`/`Edit`, nem shell (`cp`, `Copy-Item`, redirecionamento), nem
-  script (`capturar-tela.mjs` com `--out` ou `substituir` apontando para
-  `platform/**`). Contornar pelo shell é contornar a trava.
-- Precisa gravar em `platform/**` (só o import do mockup, no preparo):
-  confira o `deny` do `.claude/settings.json` (leitura). Se ainda tiver
-  `Edit(platform/**)`/`Write(platform/**)`, pare e pergunte com
-  `AskUserQuestion`: **Liberei a trava** · **Cancelar**. Enquanto isso,
-  trabalhe em `tmp/mockup/` e só copie para o import depois da liberação.
-  Se o `Write` continuar negado depois de o dev dizer que liberou, avise —
-  pode ser preciso reabrir a sessão para o Claude Code reler as permissões.
+  script (`capturar-tela.mjs` com `--out`/`--arquivo`/`--saida` apontando
+  para `platform/**`). O mockup é um artefato montado em `tmp/mockup/` —
+  não existe import no repo. Por isso o preparo nunca precisa da trava
+  liberada.
 - A mudança do dev em `.claude/settings.json` **não conta como árvore suja**
   em nenhuma conferência, e **nunca entra em stage**. Nunca use `git add -A`,
   `git add .` ou `git commit -a`; stage só por nome, e antes de cada commit
@@ -111,7 +106,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scrip
 | `pre-analise` | trabalho | início do 4 | fim do 4 |
 | `ondas` | trabalho | início do 5 | fim do 5 |
 | `portao-plano` | **espera** | pergunta do 6 | resposta do dev |
-| `pergunta` | **espera** | qualquer outra `AskUserQuestion` (régua dos 95%, modo, trava, divergência) | resposta do dev (`-Nota` com o tema em poucas palavras) |
+| `pergunta` | **espera** | qualquer outra `AskUserQuestion` (régua dos 95%, modo, divergência) | resposta do dev (`-Nota` com o tema em poucas palavras) |
 
 As fases de espera ficam **dentro** das de trabalho (ex.: `pergunta` dentro
 de `planejamento`); o resumo desconta toda espera do total.
@@ -167,9 +162,10 @@ Se a WI mexe em tela, a skill `harness:mockup-task` roda dentro do
 planejamento. Este é **o** portão do mockup (o §5 da skill e o §3a do
 `plan-task` apontam para ele — não pergunte duas vezes). Com o mockup pronto,
 **pare** e pergunte ao dev com `AskUserQuestion`, mostrando antes: link do
-artefato Claude Design (se houver), caminho do HTML da Decisão para abrir no
-navegador, percentual de fidelidade do `comparar`, tabela de peças
-(reaproveitado × novo) e divergências com o print anexado.
+artefato do mockup (é o único mockup — o dev revisa ali), percentual de
+fidelidade do `comparar`, tabela de peças (reaproveitado × novo) e
+divergências com o print anexado. Ajuste pedido = republicar **o mesmo**
+artefato.
 
 Opções: **Aprovar mockup** · **Ajustar** (o dev diz o quê; você ajusta e
 pergunta de novo) · **Cancelar**.
@@ -257,9 +253,9 @@ que `.claude/settings.json` não está em `git diff --cached --name-only`:
 
 1. **Insumos do plano** — só se houver: `backlog/tasks/<id>-<slug>.md`
    **criado ou alterado** neste preparo (materializado pelo `plan-task` §2
-   **ou** com a §Especificação visual escrita pelo `mockup-task` §6) e a
-   pasta do import aprovado em `platform/frontend/_imports/claude-design/wi-<id>-<slug>/<data>/`.
-   Mensagem: `preparo: spec e mockup (wi-<id>)`.
+   **ou** com a §Especificação visual escrita pelo `mockup-task` §6). O
+   mockup não entra em commit — ele é o artefato.
+   Mensagem: `preparo: spec (wi-<id>)`.
 2. **Plano** — só o `.cursor/plans/*.plan.md`. Antes deste commit, rode
    `git rev-parse HEAD`: esse é o **SHA-base**, e é ele que vai no manifesto
    do plano (`plan-for-cursor`, seção "Manifesto de execução"). Assim o único
@@ -344,8 +340,8 @@ Carregue `harness:plan-task`, mas **acrescente uma fatia**, não reescreva:
   aceite atendido.
 - Atualize o manifesto: o SHA-base passa a ser o `HEAD` antes do commit da
   fatia (passo 7, commit 2).
-- Mexe em tela? `harness:mockup-task` só para a parte nova (com a trava e o
-  portão 3.1).
+- Mexe em tela? `harness:mockup-task` só para a parte nova, republicando
+  o artefato existente da WI (com o portão 3.1).
 - Altera comportamento de uma fatia já entregue? Diga isso no portão.
 
 ### A.4 Pré-análise, ondas e portão
@@ -361,7 +357,7 @@ anteriores que toca e o gate previsto. Depois, passo 7 com a mensagem
 ## Regras
 
 - **Não escreva código de produto.** Só plano, `backlog/tasks/` quando a
-  skill manda e o import do mockup.
+  skill manda e o mockup (artefato, montado em `tmp/mockup/`).
 - **A trava de `platform/**` é do dev.** Você não libera nem restaura;
   com ela ativa, nada grava em `platform/**` por nenhum meio.
 - **Master intocável.** Nunca commite na `master` nem dê push para ela —

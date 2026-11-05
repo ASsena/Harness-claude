@@ -12,8 +12,12 @@ Automatiza a "verificação manual com o mockup aberto ao lado" que os planos de
 
 ## 1. Entradas
 
-- **Plano** — o `visual_reference:` do frontmatter aponta o HTML da Decisão. Sem `visual_reference` e sem fatia de tela citando import em `_imports/claude-design/`: devolva "sem verificação visual" e pare.
-- **Fontes das decisões**, nesta precedência: a §Especificação visual da spec (`backlog/tasks/<id>-<slug>.md`) → o `notes.md` do import → o HTML da Decisão. A spec é a fonte; o import é insumo (ADR-0011).
+- **Plano** — o `visual_reference:` do frontmatter aponta o **artefato** do mockup (o único mockup; não há cópia no repo) e o `visual_local:` aponta o HTML da Decisão na pasta de trabalho local de onde ele foi publicado. Sem `visual_reference` e sem fatia de tela citando mockup: devolva "sem verificação visual" e pare. Plano antigo com `visual_reference` apontando para `_imports/claude-design/` no repo: use esse caminho como a pasta local.
+- **Fontes das decisões**, nesta precedência: a §Especificação visual da spec (`backlog/tasks/<id>-<slug>.md`) → o `notes.md` do mockup → o HTML da Decisão. A spec é a fonte; o mockup é insumo (ADR-0011).
+- **Pasta local do mockup** — `<pasta do mockup>` é a pasta `original/` que contém o HTML da Decisão, com os estados, `assets/` e `<Tela> - base.referencia.png` (o `notes.md` fica na pasta pai, localmente, ou ao lado da Decisão, quando baixado do artefato). Obtenha nesta ordem:
+  1. o `visual_local` do plano, se existir nesta máquina;
+  2. senão, baixe do artefato com a ferramenta `Artifact` (`action: "list"`, `scope: "files"` com a URL do `visual_reference` para ver os caminhos; depois `action: "read"` com `paths` e `out_dir` = `tmp/pipeline/wi-<id>/visual/mockup/`);
+  3. sem pasta local e sem a ferramenta `Artifact`: veredicto "Escalado ao dev" — não reconstrua o mockup e não o compare de memória.
 - **Pasta de trabalho** `tmp/pipeline/wi-<id>/` e a **rodada**, informados pelo orquestrador. Avulsa: crie a pasta e use rodada 1.
 - **Rodada N > 1:** leia `visual-R<N-1>.md` e os `fix-R<N-1>-*.md` para o de-para (§7).
 - **Rodada `M<n>-r<r>`** (conflito de merge resolvido em tela): confira só a região dos arquivos de conflito do `merge-M<n>.md`; saída `visual-M<n>-r<r>.md`, IDs `VM<n>.<r>-XX`.
@@ -44,7 +48,7 @@ Portas, proxies e comandos estão em `platform/frontend/README.md` e `platform/b
    - backend pelo AppHost (`dotnet run --project src\Apps\Insurtech.AppHost`, em `platform/backend`);
    - a app com `npx ng serve <app>` (em `platform/frontend`).
    Espere a porta responder e o build do Angular terminar sem erro.
-3. **Mockup:** o Playwright MCP bloqueia `file://`. Sirva a pasta do import localmente: `npx -y http-server "<pasta do import>" -p 4499 -a 127.0.0.1 -c-1`.
+3. **Mockup:** o Playwright MCP bloqueia `file://`, e o artefato hospedado exige login no claude.ai, que o navegador isolado não tem. Sirva a `<pasta do mockup>` localmente: `npx -y http-server "<pasta do mockup>" -p 4499 -a 127.0.0.1 -c-1`.
 4. **Registre em `visual-servidores.md`** só o que **você** subiu (comando, PID, porta, log). O orquestrador derruba no fim da graduação. **Nunca derrube servidor que você não subiu.**
 
 O ambiente não sobe (Docker parado, porta ocupada por outra coisa, build quebrado)? Isso **não é achado de código**: veredicto "Escalado ao dev" com o trecho do log que mostra o motivo.
@@ -69,7 +73,7 @@ Ferramentas do Playwright MCP do plugin (`mcp__plugin_harness_playwright__*`; se
 
 Para cada largura × estado:
 
-1. **Mockup:** abra o HTML do estado (`http://127.0.0.1:4499/original/<Tela> - Decisão[ - <estado>].html`; imports antigos podem ter abas no topo em vez de um arquivo por estado), capture `mock-<estado>-<largura>.png`.
+1. **Mockup:** abra o HTML do estado (`http://127.0.0.1:4499/<Tela> - Decisão[ - <estado>].html`; imports antigos podem ter abas no topo em vez de um arquivo por estado), capture `mock-<estado>-<largura>.png`.
 2. **App:** navegue até a rota da tela, chegue ao estado, capture `app-<estado>-<largura>.png`.
 
 Chegar aos estados:
@@ -89,7 +93,7 @@ Dados fictícios do mockup nunca batem com os do app: **diferença de dado não 
 - **Estrutura:** cada `data-componente` tem o componente correspondente na região certa da tela (ex.: `browser_evaluate` com `querySelector('broker-select')` dentro do contêiner da barra de filtros), na ordem decidida.
 - **Valores:** `getComputedStyle` do elemento — largura, altura, `font-size`, `font-weight`, `color`, `gap`, `padding`. Token: resolva com `getComputedStyle(document.documentElement).getPropertyValue('--md-…')` e compare o valor final. Tolerância de 1px; cor normalizada em `rgb()`.
 - **Copy:** rótulos, títulos, mensagens de vazio e erro — texto exato da spec.
-- **Fora da região que a WI muda**, a tela tem de seguir igual: compare a captura do app com o `"<Tela> - base.referencia.png"` do import usando `node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" comparar --a … --b … --ignorar "<região alterada>" --data-dir "${CLAUDE_PLUGIN_DATA}"`. Diferença ali (que não seja dado) é regressão: achado 🟡, ou 🔴 se quebrou layout.
+- **Fora da região que a WI muda**, a tela tem de seguir igual: compare a captura do app com o `"<Tela> - base.referencia.png"` da `<pasta do mockup>` usando `node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" comparar --a … --b … --ignorar "<região alterada>" --data-dir "${CLAUDE_PLUGIN_DATA}"`. Diferença ali (que não seja dado) é regressão: achado 🟡, ou 🔴 se quebrou layout.
 - **Imagem:** olhe as duas capturas lado a lado para alinhamento, sobreposição, truncamento e quebra de linha que as medições não pegam.
 
 Rotule cada item como **`[visto]`** (observado no navegador, com evidência) ou **`[raciocinado]`**. **Achado só nasce de `[visto]`.**
