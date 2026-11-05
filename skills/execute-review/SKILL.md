@@ -14,7 +14,7 @@ Revisa o diff produzido pelo `/execute-implement` (rodada 1) ou pelo `/execute-f
 
 ## 0. Controle de iteração
 
-Cada invocação é uma **rodada**. Numere-as sequencialmente (rodada 1, 2, 3…).
+Cada invocação é uma **rodada**. Numere-as sequencialmente (rodada 1, 2, 3…). Dentro do pipeline, quem numera é o `harness:graduation-agent`: use o número e o tipo de revisão que ele informar.
 
 **Limite: 3 rodadas.** Se na rodada 3 ainda restarem achados não resolvidos, **não** peça mais um fix. Em vez disso:
 
@@ -26,8 +26,9 @@ Cada invocação é uma **rodada**. Numere-as sequencialmente (rodada 1, 2, 3…
 
 Identifique o ponto fixo para o diff:
 
-- **Rodada 1:** o commit/estado anterior ao início do plano (SHA-base do manifesto de execução, se houver).
+- **Rodada 1:** o SHA-base. É o mesmo no manifesto do plano e no `preflight.md` do pipeline (o `HEAD` logo antes do commit do plano); se o orquestrador informar a baseline, use a dele.
 - **Rodadas 2+:** o mesmo ponto fixo da rodada 1 — o diff sempre é contra a baseline original, não contra o fix anterior. Isso evita que achados "sumam" porque o diff encolheu.
+- **Revisões depois do merge da master** (resolução de conflito, correção do gate, escalação): a baseline é a que o orquestrador informar (o commit da implementação, ou o `HEAD` que o gate viu), recortada aos arquivos indicados. **Nunca** o SHA-base: depois do merge, esse diff traz todo o código que veio da master.
 
 ## 2. Revisão em dois eixos
 
@@ -61,7 +62,7 @@ Verifique:
 
 Cada achado recebe:
 
-- **ID:** `R<rodada>-<número sequencial>` (ex.: `R1-01`, `R1-02`, `R2-01`).
+- **ID:** `R<rodada>-<número sequencial>` (ex.: `R1-01`, `R1-02`, `R2-01`). Nas revisões de conflito, de correção do gate e de escalação, o prefixo é o que o orquestrador informar (`RM<n>.<r>`, `RG<n>.<r>`, `RE<n>`) — nunca `M<n>`, `G<n>` ou `E<n>`, que já são os IDs dos conflitos, dos testes vermelhos e das perguntas.
 - **Eixo:** `Standards` ou `Spec`.
 - **Severidade:**
   - 🔴 **Bloqueante** — quebra funcionalidade, viola ADR/rule, ou diverge da spec. Tem que corrigir.

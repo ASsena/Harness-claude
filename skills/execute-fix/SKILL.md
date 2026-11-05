@@ -16,7 +16,7 @@ Recebe o relatório do `/execute-review` e corrige **somente** os achados 🔴 (
 
 ### Só o que o review pediu
 
-O fix endereça **exclusivamente** os achados 🔴 e 🟡 do relatório. Para cada linha de código que você tocar, deve existir um ID de achado (`R<N>-XX`) que justifica a mudança.
+O fix endereça **exclusivamente** os achados 🔴 e 🟡 do relatório. Para cada linha de código que você tocar, deve existir um ID de achado (`R<N>-XX`, ou o prefixo do relatório que você está respondendo) que justifica a mudança.
 
 Proibido:
 - Corrigir algo que você "notou ao passar por perto".
@@ -57,19 +57,19 @@ Se o fix alterou comportamento (não apenas naming/estilo):
 ## 4. Produzir o relatório do fix
 
 ```markdown
-# Fix — Rodada <N>
+# Fix — resposta a <arquivo do relatório respondido>
 
-- **Review respondido:** Rodada <N-1>
-- **Achados endereçados:** <quantidade> de <total 🔴/🟡>
+- **Relatório respondido:** <ex.: review-R1.md> (rodada <N> do review)
+- **Achados endereçados:** <quantidade> de <total 🔴/🟡 atribuídos a você>
 
 ## Correções aplicadas
 
 | ID do achado | Status | O que foi feito |
 |---|---|---|
-| R<N-1>-01 | ✅ Corrigido | <descrição curta da correção> |
-| R<N-1>-02 | ✅ Corrigido | <descrição curta da correção> |
-| R<N-1>-03 | ⚠️ Parcial | <o que foi feito e o que faltou, com motivo> |
-| R<N-1>-04 | ❌ Não corrigido | <por que não foi possível — conflito com decisão, dependência externa, etc.> |
+| R<N>-01 | ✅ Corrigido | <descrição curta da correção> |
+| R<N>-02 | ✅ Corrigido | <descrição curta da correção> |
+| R<N>-03 | ⚠️ Parcial | <o que foi feito e o que faltou, com motivo> |
+| R<N>-04 | ❌ Não corrigido | <por que não foi possível — conflito com decisão, dependência externa, etc.> |
 
 ## Arquivos alterados
 <lista de arquivos tocados pelo fix, com o ID do achado que motivou cada um>
@@ -80,11 +80,11 @@ Se o fix alterou comportamento (não apenas naming/estilo):
 
 ## Achados novos descobertos durante fix
 <achados que você encontrou mas NÃO corrigiu — ficam para o review seguinte avaliar>
-- <descrição> em `<arquivo>:<linha>` — descoberto ao corrigir R<N-1>-XX.
+- <descrição> em `<arquivo>:<linha>` — descoberto ao corrigir R<N>-XX.
 
 ## Conflitos com decisões fechadas
 <achados cujo fix conflitaria com decisão do plano — escalar ao dev>
-- R<N-1>-XX conflita com decisão "<qual>" — <explicação>.
+- R<N>-XX conflita com decisão "<qual>" — <explicação>.
 ```
 
 ## 5. Saída
@@ -94,4 +94,4 @@ Entregue o relatório do fix ao `/execute-review` para a rodada seguinte. O revi
 - Não houve regressões.
 - Achados novos (se houver) precisam de tratamento.
 
-**Não commite.** O commit só acontece quando o review aprovar.
+**Não commite.** Dentro do pipeline, o commit é do `harness:graduation-agent`.

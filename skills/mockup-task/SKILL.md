@@ -1,10 +1,12 @@
 ---
 name: mockup-task
-description: Gera o mockup das mudanças visuais de um Work Item a partir da captura da tela real renderizada (Playwright), reaproveitando instâncias reais dos componentes broker-* e o tema Segurus, no formato de import da casa (platform/frontend/_imports/claude-design/), e trava até o dev aprovar. Chamada pelo /plan-task quando a WI mexe em tela; também roda avulsa com "/mockup-task" seguido do número da WI.
+description: Gera o mockup das mudanças visuais de um Work Item a partir da captura da tela real renderizada (Playwright), reaproveitando instâncias reais dos componentes broker-* e o tema Segurus, e entrega um único mockup como artefato do Claude (sem cópia no repo), travando até o dev aprovar. Chamada pelo /plan-task quando a WI mexe em tela; também roda avulsa com "/mockup-task" seguido do número da WI.
 argument-hint: "nº do Work Item do Azure Boards (ex.: 2538)"
 ---
 
-Transforma o pedido visual de uma WI em **mockup aprovado pelo dev**, montado com as peças que o app já tem. Sai um import datado em `platform/frontend/_imports/claude-design/wi-<id>-<slug>/<AAAA-MM-DD>/`, no mesmo formato dos imports existentes (modelo: `wi-3224-fluxos/2026-09-24/`).
+Transforma o pedido visual de uma WI em **mockup aprovado pelo dev**, montado com as peças que o app já tem. **Sai um único mockup: um artefato do Claude**, publicado direto da captura editada. Não existe segunda versão — nada vai para `platform/frontend/_imports/` nem para o Git.
+
+Os arquivos de trabalho (capturas, fragmentos, comparações) ficam numa pasta local fora do versionamento, `tmp/mockup/wi-<id>-<slug>/<AAAA-MM-DD>/` — chamada de `<mockup>` daqui em diante. Ela é a fonte de onde o artefato é publicado e republicado; não é um segundo mockup. Antes de começar, confirme que está ignorada (`git check-ignore -q tmp/mockup/x`); se não estiver, pare e pergunte.
 
 **O mockup é insumo aprovado, não fonte da verdade** (ADR-0011, "O que não muda"). A seta continua `spec → código`: o que o mockup decide sobe para a spec (§6) e é a spec que o plano e o Cursor seguem.
 
@@ -24,7 +26,7 @@ Sinais de que exige:
 
 Sem nenhum sinal: devolva "sem mudança visual" ao chamador e pare. Sinal fraco ou indireto (ex.: "retornar o campo X na API" — vai aparecer em alguma tela?) é pergunta ao dev pela régua dos 95% do `/plan-task` §4.
 
-**Já existe import para esta WI** em `_imports/claude-design/`? Então o mockup já foi feito: leia os `notes*.md` e os arquivos **Decisão** (os **Variantes** são histórico), confira se cobrem o pedido atual e só complemente o que faltar, num import novo datado. Não sobrescreva import antigo.
+**Já existe mockup para esta WI?** Procure nesta ordem: o link do artefato na §Especificação visual da spec (`backlog/tasks/<id>-<slug>.md`), uma pasta `tmp/mockup/wi-<id>-*` local e, para WIs antigas, um import em `platform/frontend/_imports/claude-design/` (só leitura — histórico do formato antigo). Achou: leia o `notes.md` e os arquivos **Decisão** (os **Variantes** são histórico), confira se cobrem o pedido atual e só complemente o que faltar — republicando **o mesmo** artefato quando ele existir. Nunca grave em `_imports/`.
 
 **Print anexado é referência, não gabarito.** Onde ele divergir do design system, o design system vence, e a divergência vai para o dev ver (§5).
 
@@ -41,7 +43,7 @@ Princípio do `CLAUDE.md`: apontar para a fonte, nunca duplicá-la. Não existe 
 | Tokens (cor, tipografia, espaçamento, raio, elevação) e os dois surfaces | `libs/design-system/src/lib/theming/` (`_tokens.scss`, `segurus-erp-surface`, `segurus-marketing-surface`) |
 | Surface da tela | ERP/gestão para `broker-web` e `admin-web`; marketing para `sales-site` |
 | Componentes de feature e de layout | `libs/features/<feature>/src/lib/components/**`, `libs/layout/**` |
-| Decisões de UX já tomadas | `docs/releases/<release>/ux/` (`design-decisions.md`, `screen-map.md`) e os `notes*.md` dos imports anteriores |
+| Decisões de UX já tomadas | `docs/releases/<release>/ux/` (`design-decisions.md`, `screen-map.md`), a §Especificação visual das specs vizinhas e os `notes*.md` dos imports antigos |
 | Rules de front-end | `036`, `042`, `070`/`080`/`090`, despachadas pela `005` — abra as da área |
 
 ---
@@ -56,7 +58,7 @@ Princípio do `CLAUDE.md`: apontar para a fonte, nunca duplicá-la. Não existe 
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" capturar \
-  --url <url da rota> --out "<import>/original" --nome "<Tela> - base" \
+  --url <url da rota> --out "<mockup>/original" --nome "<Tela> - base" \
   --data-dir "${CLAUDE_PLUGIN_DATA}" --viewport 1440x900 \
   --sem-interativo [--esperar "<seletor que indica tela pronta>"] [--antes <passos.mjs>]
 ```
@@ -70,7 +72,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" capturar \
   3. **Capture com `--sem-interativo`** (comando abaixo): se a sessão cair no meio, o script tenta o login automático de novo; se não der, falha com motivo em vez de travar esperando alguém.
   4. **Falhou** (senha recusada, usuário sem senha em texto no realm, Keycloak pediu troca de senha/OTP): pare e escale ao dev com a mensagem do script. Só sem `--sem-interativo` o script abre uma janela visível para o dev logar à mão (até 5 min) — **avise o dev antes**.
   - A sessão (cookies, `localStorage` e `sessionStorage`, onde fica o token OIDC) fica em `${CLAUDE_PLUGIN_DATA}/auth/`, fora do repo, e é renovada a cada captura. Nunca escreva a senha em arquivo, relatório, log ou prompt; nunca crie usuário.
-- **`--antes`**: arquivo `export default async (page) => { … }` com os passos para chegar ao estado (abrir aba, aplicar filtro, abrir modal). Grave-o em `tmp/`, não no import.
+- **`--antes`**: arquivo `export default async (page) => { … }` com os passos para chegar ao estado (abrir aba, aplicar filtro, abrir modal). Grave-o em `tmp/mockup/passos/`, fora de `<mockup>` (não é publicado).
 - **Largura estreita**: se a tela é responsiva, capture de novo com `--viewport 390x844` e `--nome "<Tela> - base - estreita"`.
 - **Doadores**: componente que a WI precisa e que existe em **outra** tela (ex.: um `broker-select` `compact`) → capture essa tela também (`--nome "doador - <componente>"`). É de lá que sai a marcação real.
 - **Estados reais**: sempre que o app conseguir chegar ao estado (vazio por filtro sem resultado, modal de erro de validação), **capture-o** em vez de desenhá-lo.
@@ -92,7 +94,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" substituir --arquivo "<ht
 node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" css-de     --arquivo "<doador.html>" --para "<html>" --data-dir "${CLAUDE_PLUGIN_DATA}"   # CSS de uma tela doadora
 ```
 
-Fragmentos que você escreve vão para `tmp/mockup/`, nunca para o import.
+Fragmentos que você escreve vão para `tmp/mockup/fragmentos/`, fora de `<mockup>` (não são publicados).
 
 Liste o que a tela capturada já usa (pelos seletores `broker-*` e componentes de feature no DOM). Para cada elemento do pedido, nesta ordem:
 
@@ -110,22 +112,22 @@ Nunca invente cor, fonte, espaçamento ou raio fora dos tokens. Valor que o tema
 - Marque cada bloco com atributos, sem mudar layout: `data-componente="<seletor broker-* ou caminho>"`, `data-variacao="..."`, `data-novo="<nome proposto>"`. É o que o plano e o `/verify-visual` leem.
 - Anotações: com `substituir --seletor "body > script:last-of-type" --modo antes`, acrescente um botão fixo "mostrar anotações" (`position: fixed`, escondido por padrão no layout) que contorna cada bloco com *reaproveitado: X* ou *novo: Y*. Nada além disso é injetado.
 - **Estados**: um arquivo por estado — `"<Tela> - Decisão.html"` (padrão), `"<Tela> - Decisão - vazio.html"`, `"… - carregando.html"`, `"… - erro.html"`, e os de validação. Capturado de verdade quando possível (§3); editado a partir da Decisão quando não. Estado que a WI não definiu é pergunta ao dev.
-- Dados: troque os dados reais do seed por fictícios plausíveis — região por região, com `extrair`/`substituir`, nunca lendo o arquivo inteiro — com o **vocabulário canônico** (`CLAUDE.md` §5). Nada de dado real de cliente no import.
+- Dados: troque os dados reais do seed por fictícios plausíveis — região por região, com `extrair`/`substituir`, nunca lendo o arquivo inteiro — com o **vocabulário canônico** (`CLAUDE.md` §5). Nada de dado real de cliente no artefato: ele é uma página hospedada, a um compartilhamento de qualquer pessoa.
 - Cabeçalho em comentário HTML: WI, data, status (`rascunho` / `aprovado em <data>`), URL e data da captura.
 
 **Conferir a fidelidade antes de mostrar** — a parte que a WI não muda tem de ficar idêntica à tela real:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" screenshot --arquivo "<import>/original/<Tela> - Decisão.html" --out tmp/mockup-decisao.png --viewport 1440x900 --data-dir "${CLAUDE_PLUGIN_DATA}"
-node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" comparar --a "<import>/original/<Tela> - base.referencia.png" --b tmp/mockup-decisao.png --ignorar "<x,y,w,h da região alterada>[;…]" --out tmp/mockup-diff.png --data-dir "${CLAUDE_PLUGIN_DATA}"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" screenshot --arquivo "<mockup>/original/<Tela> - Decisão.html" --out tmp/mockup/conferencia/decisao.png --viewport 1440x900 --data-dir "${CLAUDE_PLUGIN_DATA}"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" comparar --a "<mockup>/original/<Tela> - base.referencia.png" --b tmp/mockup/conferencia/decisao.png --ignorar "<x,y,w,h da região alterada>[;…]" --out tmp/mockup/conferencia/diff.png --data-dir "${CLAUDE_PLUGIN_DATA}"
 ```
 
-`percentual` acima de **0,5%** fora da região ignorada = você alterou algo que a WI não pede (ou um recurso faltou). Abra o `mockup-diff.png`, corrija e confira de novo. Não apresente ao dev antes de passar.
+`percentual` acima de **0,5%** fora da região ignorada = você alterou algo que a WI não pede (ou um recurso faltou). Abra o `diff.png`, corrija e confira de novo. Não apresente ao dev antes de passar.
 
-### Estrutura do import
+### Pasta do mockup (`<mockup>`) — é o que o artefato publica
 
 ```
-platform/frontend/_imports/claude-design/wi-<id>-<slug>/<AAAA-MM-DD>/
+tmp/mockup/wi-<id>-<slug>/<AAAA-MM-DD>/
   notes.md
   original/
     <Tela> - base.html                 ← captura da tela atual, intocada
@@ -136,9 +138,9 @@ platform/frontend/_imports/claude-design/wi-<id>-<slug>/<AAAA-MM-DD>/
     assets/                            ← fontes e imagens que a captura baixou
 ```
 
-**Escrita em `platform/**` está travada** por `.claude/settings.json`. O dev libera a trava quando chama um agente que usa esta skill. Se o `Write` for negado, **pare e peça ao dev para liberar** — nunca contorne por shell (`CLAUDE.md` §2). O script de captura grava direto no `--out`; se a trava estiver ativa, capture em `tmp/mockup/` e copie para o import depois que o dev liberar.
+**Nada desta skill grava em `platform/**`** — nem `Write`/`Edit`, nem shell, nem o `--out` do script. O mockup vive em `<mockup>` e no artefato; por isso a trava de `platform/**` não entra no fluxo do mockup.
 
-**O `notes.md`**, no formato dos imports existentes:
+**O `notes.md`**, no formato dos imports antigos (publicado junto no artefato):
 
 ```markdown
 # WI <id> — <título curto>
@@ -169,8 +171,14 @@ Cada decisão com **valor verificável** (px, token, copy, ordem). É isso que o
 
 ### Publicar para revisão
 
-- **Com a ferramenta Artifact disponível** (app Claude): publique **o próprio** `"<Tela> - Decisão.html"` como artefato, com os outros estados e a pasta `assets/` em `files` (mesmos caminhos relativos). **Não redesenhe nada:** o artefato é a captura editada — sem trocar fonte, cor, espaçamento, sem tema escuro, sem "melhorar". Se a ferramenta exigir, acrescente só um `<title>`. Ajuste pedido pelo dev vai **no arquivo do import** e o artefato é republicado a partir dele.
-- **Sem a ferramenta** (Claude Code CLI): o dev abre o arquivo no navegador — ele funciona direto do disco, sem servidor.
+O artefato **é** o mockup. Publique-o com a ferramenta `Artifact`, direto de `<mockup>`:
+
+- **Página:** `file_path` = `<mockup>/original/<Tela> - Decisão.html`; título `WI <id> — <Tela> (mockup)`.
+- **`files`** (caminhos publicados relativos à página, ou seja, à pasta `original/`): os outros estados (`<Tela> - Decisão - <estado>.html`), `assets/…`, `<Tela> - base.referencia.png` e `notes.md` (origem: `<mockup>/notes.md`). Assim o artefato carrega tudo o que a verificação visual precisa, mesmo noutra máquina.
+- **Não redesenhe nada:** o artefato é a captura editada — sem trocar fonte, cor, espaçamento, sem tema escuro, sem tokens de tema do artefato, sem "melhorar". A fidelidade ao app vence qualquer convenção de página de artefato; se a ferramenta exigir, acrescente só um `<title>`.
+- **Grave a URL** devolvida em `<mockup>/artefato.txt` e no cabeçalho do `notes.md`.
+- **Ajuste pedido pelo dev:** edite os arquivos em `<mockup>` e republique **o mesmo** artefato (passando a URL) — nunca um artefato novo, nunca uma segunda versão em outro lugar.
+- **Sem a ferramenta `Artifact`** na sessão (ex.: Claude Code CLI sem a conta do app): não invente outro formato. Diga ao dev que o mockup é publicado como artefato e precisa de uma sessão com essa ferramenta (app Claude ou desktop), e pergunte: **Revisar o arquivo local e publicar depois** (o `visual_reference` fica vazio até a publicação; o caminho local vai em `visual_local`) · **Parar**.
 
 ---
 
@@ -178,13 +186,13 @@ Cada decisão com **valor verificável** (px, token, copy, ordem). É isso que o
 
 Apresente ao dev, curto:
 
-- o link do artefato (quando houver) e o caminho do HTML da Decisão (e dos estados);
+- o link do artefato — é ele que o dev revisa (os estados estão dentro dele);
 - o percentual de fidelidade do `comparar` fora da região alterada;
 - a tabela de peças;
 - divergências entre o print anexado e o design system, e qual lado o mockup seguiu;
 - o que foi decidido por ser fato do repo, e o que ainda é pergunta.
 
-Perguntas pendentes seguem a régua dos 95%: **uma por vez, sempre com recomendação**. Itere até o dev aprovar.
+Perguntas pendentes seguem a régua dos 95%: **uma por vez, sempre com recomendação**. Itere até o dev aprovar. Dentro do `plan-task-agent`, esta aprovação **é** o portão 3.1 dele — apresente o material uma vez só, lá.
 
 **Sem aprovação, o `/plan-task` não grava o plano.** Mockup em rascunho não entra em commit.
 
@@ -192,12 +200,12 @@ Perguntas pendentes seguem a régua dos 95%: **uma por vez, sempre com recomenda
 
 ## 6. Levar a decisão para a spec
 
-A spec (`backlog/tasks/<id>-<slug>.md`) é a fonte; o import é insumo. Depois da aprovação:
+A spec (`backlog/tasks/<id>-<slug>.md`) é a fonte; o artefato é insumo. Depois da aprovação:
 
-- Se o repo tiver a skill `spec-frontend`, use-a para gravar a **§Especificação visual** a partir do import (foi o caminho da 3224).
-- Senão, escreva você a §Especificação visual na spec: valores, estados e copy de cada `D<n>`, e a linha "Origem: `_imports/claude-design/wi-<id>-<slug>/<data>/` — valem o `notes.md` e o arquivo Decisão".
+- Se o repo tiver a skill `spec-frontend`, use-a para gravar a **§Especificação visual** a partir do `notes.md` e dos arquivos Decisão (foi o caminho da 3224).
+- Senão, escreva você a §Especificação visual na spec: valores, estados e copy de cada `D<n>`, e a linha "Origem: mockup aprovado em <data> — <URL do artefato>".
 
-**O import precisa estar no Git.** Spec que cita pasta de mockup fora do versionamento já bloqueou merge (3224, commit `a6effda0`).
+**A spec carrega todos os valores verificáveis.** O artefato não fica no Git, então nada que o plano ou a verificação visual precisem cobrar pode existir só nele: cada `D<n>` vai para a spec com px, token, copy e estados. Spec que dependia de mockup fora do versionamento já bloqueou merge (3224, commit `a6effda0`) — com o valor escrito na spec, o link é só referência visual.
 
 ---
 
@@ -205,8 +213,10 @@ A spec (`backlog/tasks/<id>-<slug>.md`) é a fonte; o import é insumo. Depois d
 
 Ao `/plan-task` (ou ao dev, quando avulsa):
 
-- caminho do import e do HTML da Decisão — vira o `visual_reference:` do plano;
+- a URL do artefato — vira o `visual_reference:` do plano — e o caminho local do HTML da Decisão em `<mockup>` — vira o `visual_local:`;
 - componentes reaproveitados (com caminho), variações e componentes novos;
 - decisões fechadas com o dev, uma linha cada — viram "Decisões (não reabrir)" no plano.
 
-Avulsa, não commite sozinha: pergunte se vai para a branch da WI (`feature/wi-<id>-<slug>`). Dentro do `/plan-task`, o commit é o dele (§6 de lá).
+O mockup não tem commit. A spec alterada no §6 tem: dentro do `/plan-task`, ela entra no commit de insumos (§6 de lá), mesmo quando o arquivo já existia; avulsa, não commite sozinha — pergunte se vai para a branch da WI (`feature/wi-<id>-<slug>`).
+
+**Servidores** que você subiu para capturar: dentro do `plan-task-agent`, registre-os em `tmp/pipeline/wi-<id>/servidores-preparo.md` (ele derruba no fim do preparo); avulsa, derrube-os ao terminar.
