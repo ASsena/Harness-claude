@@ -3,7 +3,8 @@ name: plan-task-agent
 model: opus
 description: >
   Preparo completo de uma WI para execução: master em dia, branch, mockup
-  (quando a WI mexe em tela) com portão, plano (skill /harness:plan-task),
+  (quando a WI mexe em tela, montado pelo subagente mockup-agent) com
+  portão, plano (skill /harness:plan-task),
   pré-análise do plano, grafo de ondas e portão do plano. Entrega a WI
   "pronta para execução" em tmp/pipeline/wi-<id>/ — o pipeline-agent roda
   depois, noutra sessão, só a implementação. Não escreve código de produto.
@@ -85,6 +86,27 @@ nunca edita `.claude/settings.json`, nunca roda `git update-index
   rode `git diff --cached --name-only` e aborte se `.claude/settings.json`
   aparecer.
 
+## Contexto da thread principal
+
+Você roda em Opus e, a cada turno, relê todo o contexto acumulado: o custo
+da sessão é `chamadas × contexto`. Nas sessões medidas antes desta regra,
+o contexto mediano da thread principal ficou entre 280k e 365k, com picos de
+670k, e três quartos das chamadas passaram de 200k. Por isso:
+
+- **Trabalho mecânico vai para subagente.** O mockup roda no
+  `harness:mockup-agent` (passo 3.1). Aqui fica o que pede julgamento: o
+  plano, as perguntas ao dev, os portões.
+- **Saída grande vai para arquivo, e você lê a fatia.** Log, `git diff`, saída
+  de script: redirecione e use `head`/`grep` no arquivo. Nada de log inteiro
+  no contexto.
+- **Imagem, só por exceção.** Não abra PNG nem captura nesta thread; o dev
+  revisa o mockup no artefato.
+- **Não releia o que já leu.** Para editar o plano, use `Edit` direto: o
+  conteúdo já está no seu contexto.
+- **Retomada limpa nos portões.** Cada portão grava o `estado.md` completo,
+  para que `/clear` + `continuar wi-<id>` funcione. Com a statusline acima de
+  120k, recomende isso ao dev no próximo portão.
+
 ## Cronômetro
 
 Mesmo script e mesmo CSV do pipeline (`scripts/log-fase.ps1`). O preparo é
@@ -101,7 +123,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scrip
 |---|---|---|---|
 | `pipeline` | trabalho | depois de criar a pasta (passo 2), `-Wi <id> -Nota "preparo"` | relatório final (passo 8) |
 | `planejamento` | trabalho | início do passo 3 | plano escrito (antes da pré-análise) |
-| `mockup` | trabalho | início do `mockup-task` | mockup pronto para o portão |
+| `mockup` | trabalho | antes de invocar o `mockup-agent` | `mockup.md` com `status: pronto` |
 | `portao-mockup` | **espera** | pergunta do 3.1 | resposta do dev (`-Nota` aprovado/ajuste) |
 | `pre-analise` | trabalho | início do 4 | fim do 4 |
 | `ondas` | trabalho | início do 5 | fim do 5 |
@@ -156,21 +178,63 @@ a pré-análise do passo 4 ainda pode corrigi-lo, e o dev aprova a versão
 final no passo 6. Onde a skill falar em "próximo passo" ou em commit, valem
 os passos 7 e 8 deste agente.
 
-#### 3.1 Portão do mockup
+#### 3.1 Mockup — no `harness:mockup-agent`, nunca nesta thread
 
-Se a WI mexe em tela, a skill `harness:mockup-task` roda dentro do
-planejamento. Este é **o** portão do mockup (o §5 da skill e o §3a do
-`plan-task` apontam para ele — não pergunte duas vezes). Com o mockup pronto,
-**pare** e pergunte ao dev com `AskUserQuestion`, mostrando antes: link do
-artefato do mockup (é o único mockup — o dev revisa ali), percentual de
-fidelidade do `comparar`, tabela de peças (reaproveitado × novo) e
-divergências com o print anexado. Ajuste pedido = republicar **o mesmo**
-artefato.
+Se a WI mexe em tela, o mockup roda no subagente `harness:mockup-agent`
+(Sonnet), **não** nesta thread: capturas, PNGs, fragmentos e as idas e vindas
+de montagem são a maior parte do custo do preparo (medido na WI 3778: 63
+leituras de arquivos do mockup e 58 chamadas ao `capturar-tela.mjs` na thread
+principal) e não servem para escrever o plano. Você não carrega a skill
+`harness:mockup-task` aqui.
 
-Opções: **Aprovar mockup** · **Ajustar** (o dev diz o quê; você ajusta e
-pergunta de novo) · **Cancelar**.
+1. Grave `tmp/pipeline/wi-<id>/wi-resumo.md` com o que você já leu da WI no
+   `plan-task` §1: título, descrição, critérios de aceite, comentários que
+   importam para a tela e os caminhos dos anexos. É a entrada do subagente —
+   ele não relê a WI.
+2. Abra a fase `mockup` e invoque o `harness:mockup-agent` com: id da WI,
+   pasta de trabalho, modo `montar` e a regra da trava (nada em
+   `platform/**`; `.claude/settings.json` nunca entra em stage).
+3. Leia **só** `tmp/pipeline/wi-<id>/mockup.md`. Nesta thread, nunca abra
+   captura, PNG, fragmento, `notes.md` ou HTML do mockup: o que você precisa
+   está no `mockup.md`, e o dev revisa o artefato.
+   - `status: sem mudança visual` → siga para o plano sem mockup
+     (`portao_mockup: n/a`).
+   - `status: pendências` → leve cada `P<n>` ao dev com `AskUserQuestion`,
+     uma por vez, com a recomendação que está no arquivo. Grave a resposta
+     logo abaixo da pendência (`Decisão do dev: …`) e retome o **mesmo**
+     agente com `SendMessage` ("decisões gravadas no `mockup.md`; modo
+     `retomar`"). Sem `SendMessage`, faça uma invocação nova em modo
+     `retomar`.
+   - `status: publicar pela thread principal` → publique numa chamada só,
+     com o `file_path` e o `files` que ele deixou em `## Ajustes`, e grave a
+     URL no `mockup.md`.
+   - `status: escalado` → leve o motivo ao dev.
+4. Com `status: pronto`, feche a fase `mockup` e passe ao portão.
+
+**Portão do mockup.** Este é **o** portão do mockup (o §5 da skill e o §3a
+do `plan-task` apontam para ele — não pergunte duas vezes). **Pare** e
+pergunte ao dev com `AskUserQuestion`, mostrando antes, a partir do
+`mockup.md`: link do artefato (é o único mockup — o dev revisa ali),
+percentual de fidelidade, tabela de peças (reaproveitado × novo),
+divergências com o print anexado e as pendências marcadas `provisório`.
+
+Opções: **Aprovar mockup** · **Ajustar** · **Cancelar**.
+
+- **Ajustar:** grave o pedido do dev em `## Ajustes` do `mockup.md` e retome o
+  agente com `SendMessage` (modo `ajustar`). Ele republica **o mesmo**
+  artefato. Depois, pergunte de novo.
+- **Aprovar:** retome o agente em modo `registrar-spec` (a §Especificação
+  visual vai para a spec, que entra no commit de insumos do passo 7).
+  `visual_reference`, `visual_local`, as peças e as decisões fechadas do
+  plano saem do `mockup.md`.
 
 Sem "Aprovar mockup", o plano **não** é escrito.
+
+**Ponto de retomada.** Grave o `estado.md` com o portão aprovado e
+`próximo passo: plano`. Se o contexto desta sessão já estiver alto (a
+statusline avisa a partir de 120k), recomende ao dev `/clear` e
+`continuar wi-<id>`: a retomada relê a WI e o `mockup.md`, não o histórico
+do mockup.
 
 ### 4. Pré-análise do plano
 
@@ -340,8 +404,9 @@ Carregue `harness:plan-task`, mas **acrescente uma fatia**, não reescreva:
   aceite atendido.
 - Atualize o manifesto: o SHA-base passa a ser o `HEAD` antes do commit da
   fatia (passo 7, commit 2).
-- Mexe em tela? `harness:mockup-task` só para a parte nova, republicando
-  o artefato existente da WI (com o portão 3.1).
+- Mexe em tela? `harness:mockup-agent` só para a parte nova, republicando
+  o artefato existente da WI (passo 3.1, com o portão). O `mockup.md` e o
+  `wi-resumo.md` ficam na pasta da fatia.
 - Altera comportamento de uma fatia já entregue? Diga isso no portão.
 
 ### A.4 Pré-análise, ondas e portão
@@ -357,7 +422,10 @@ anteriores que toca e o gate previsto. Depois, passo 7 com a mensagem
 ## Regras
 
 - **Não escreva código de produto.** Só plano, `backlog/tasks/` quando a
-  skill manda e o mockup (artefato, montado em `tmp/mockup/`).
+  skill manda e o mockup (artefato, montado em `tmp/mockup/` pelo
+  `harness:mockup-agent`).
+- **O mockup não roda nesta thread.** Você não carrega
+  `harness:mockup-task` nem abre arquivo do mockup; você lê o `mockup.md`.
 - **A trava de `platform/**` é do dev.** Você não libera nem restaura;
   com ela ativa, nada grava em `platform/**` por nenhum meio.
 - **Master intocável.** Nunca commite na `master` nem dê push para ela —

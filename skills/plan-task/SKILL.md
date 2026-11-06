@@ -80,7 +80,7 @@ Antes de desenhar qualquer fatia, percorra a hierarquia do `CLAUDE.md` §3 pelas
 
 ## 3a. Mudança visual? — mockup antes das fatias
 
-Se a WI mexe em tela (critérios no §1 da skill `mockup-task`), carregue a skill `harness:mockup-task` com a tool Skill e execute-a nesta thread, reaproveitando a WI já lida. O mockup precisa estar **aprovado pelo dev** antes de você escrever as fatias: sem aprovação, o plano não é gravado. Há **um** portão do mockup: dentro do `plan-task-agent` é o 3.1 dele; avulsa, é o §5 da `mockup-task`. Não pergunte duas vezes. As decisões fechadas no mockup entram em "Decisões (não reabrir)".
+Se a WI mexe em tela (critérios no §1 da skill `mockup-task`): **dentro do `plan-task-agent`**, o mockup roda no subagente `harness:mockup-agent` (passo 3.1 de lá), e você lê só o `mockup.md` que ele devolve. **Avulsa**, carregue a skill `harness:mockup-task` com a tool Skill e execute-a nesta thread, reaproveitando a WI já lida. O mockup precisa estar **aprovado pelo dev** antes de você escrever as fatias: sem aprovação, o plano não é gravado. Há **um** portão do mockup: dentro do `plan-task-agent` é o 3.1 dele; avulsa, é o §5 da `mockup-task`. Não pergunte duas vezes. As decisões fechadas no mockup entram em "Decisões (não reabrir)".
 
 ---
 

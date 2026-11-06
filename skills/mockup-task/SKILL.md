@@ -124,6 +124,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/capturar-tela.mjs" comparar --a "<mockup>/or
 
 `percentual` acima de **0,5%** fora da região ignorada = você alterou algo que a WI não pede (ou um recurso faltou). Abra o `diff.png`, corrija e confira de novo. Não apresente ao dev antes de passar.
 
+**Olhe pouco e recortado.** Cada imagem lida com `Read` fica no contexto até o fim da sessão. O `percentual` é o critério; para ver a região que a WI mudou, gere um recorte (`screenshot … --recorte x,y,w,h`) em vez de abrir a tela inteira, e não releia a mesma imagem.
+
 ### Pasta do mockup (`<mockup>`) — é o que o artefato publica
 
 ```
@@ -192,7 +194,7 @@ Apresente ao dev, curto:
 - divergências entre o print anexado e o design system, e qual lado o mockup seguiu;
 - o que foi decidido por ser fato do repo, e o que ainda é pergunta.
 
-Perguntas pendentes seguem a régua dos 95%: **uma por vez, sempre com recomendação**. Itere até o dev aprovar. Dentro do `plan-task-agent`, esta aprovação **é** o portão 3.1 dele — apresente o material uma vez só, lá.
+Perguntas pendentes seguem a régua dos 95%: **uma por vez, sempre com recomendação**. Itere até o dev aprovar. Dentro do `plan-task-agent`, quem roda esta skill é o `harness:mockup-agent`: ele não apresenta nada nem pergunta — grava o material e as pendências em `tmp/pipeline/wi-<id>/mockup.md`, e a aprovação é o portão 3.1 do `plan-task-agent`.
 
 **Sem aprovação, o `/plan-task` não grava o plano.** Mockup em rascunho não entra em commit.
 
@@ -211,7 +213,7 @@ A spec (`backlog/tasks/<id>-<slug>.md`) é a fonte; o artefato é insumo. Depois
 
 ## 7. Devolver ao chamador
 
-Ao `/plan-task` (ou ao dev, quando avulsa):
+Ao `/plan-task` (ou ao dev, quando avulsa; dentro do `plan-task-agent`, pelo `mockup.md` do `mockup-agent`):
 
 - a URL do artefato — vira o `visual_reference:` do plano — e o caminho local do HTML da Decisão em `<mockup>` — vira o `visual_local:`;
 - componentes reaproveitados (com caminho), variações e componentes novos;
