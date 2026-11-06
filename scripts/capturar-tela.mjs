@@ -12,7 +12,7 @@
 //        [--realm-json <arquivo do realm> --usuario <username>]   (senha lida do realm, nunca impressa)
 //        (ou credenciais em HARNESS_LOGIN_USER / HARNESS_LOGIN_PASSWORD)
 //        [--checar]   (só diz se a sessão salva ainda vale; não loga)
-//   node capturar-tela.mjs screenshot --arquivo <html> --out <png> [--viewport 1440x900]
+//   node capturar-tela.mjs screenshot --arquivo <html> --out <png> [--viewport 1440x900] [--recorte x,y,w,h]
 //   node capturar-tela.mjs comparar --a <png> --b <png> --out <diff.png> [--ignorar x,y,w,h;...]
 //   node capturar-tela.mjs pecas      --arquivo <html>        (componentes da tela, com um seletor de cada)
 //   node capturar-tela.mjs extrair    --arquivo <html> --seletor <css> [--indice N] [--max 20000]
@@ -358,9 +358,19 @@ async function screenshot() {
   const page = await (await browser.newContext({ viewport })).newPage();
   await page.goto(new URL(`file://${path.resolve(String(arquivo))}`).href, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts && document.fonts.ready);
-  await page.screenshot({ path: String(out), fullPage: false, animations: 'disabled' });
+  // --recorte x,y,w,h: salva só a região que a WI mudou — é o que se olha com Read,
+  // em vez da tela inteira (uma imagem cheia por conferência pesa no contexto).
+  let clip;
+  if (opt.recorte) {
+    const [x, y, width, height] = String(opt.recorte).split(',').map(Number);
+    if ([x, y, width, height].some((n) => !Number.isFinite(n)) || width <= 0 || height <= 0) {
+      die('--recorte espera x,y,w,h (números, w e h > 0).');
+    }
+    clip = { x, y, width, height };
+  }
+  await page.screenshot({ path: String(out), fullPage: false, animations: 'disabled', ...(clip ? { clip } : {}) });
   await browser.close();
-  console.log(JSON.stringify({ png: out }));
+  console.log(JSON.stringify({ png: out, ...(clip ? { recorte: clip } : {}) }));
 }
 
 async function comparar() {

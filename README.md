@@ -39,11 +39,11 @@ Tudo fica com o prefixo do plugin:
 | Fatia nova numa WI já executada | preparo: `claude --agent harness:plan-task-agent "adicionar fatia wi-<id>: <demanda>"` → execução: `claude --agent harness:pipeline-agent "executar wi-<id> adicional-<n>"` |
 | A branch andou depois do preparo | `claude --agent harness:plan-task-agent "revalidar wi-<id>"` |
 | Só o plano, sem o preparo completo | `/harness:plan-task <WI>` |
-| Mockup de tela de uma WI (sai como artefato) | roda dentro do preparo; avulso: `/harness:mockup-task <WI>` |
+| Mockup de tela de uma WI (sai como artefato) | roda dentro do preparo, no subagente `mockup-agent`; avulso: `/harness:mockup-task <WI>` |
 | Conferir a tela contra o mockup | roda na graduação quando o plano tem `visual_reference`; avulso: `/harness:verify-visual <plano>` |
 | Apoio (carregadas pelas outras) | `harness:plan-for-cursor` (régua do plano), `harness:grilling` (perguntas uma por vez), `harness:domain-modeling` (vocabulário e ADR) |
 | Skills avulsas | `/harness:spec-task`, `/harness:audit-task`, `/harness:revise`, `/harness:execute-implement`… |
-| Subagentes | `harness:execute-task-agent`, `harness:graduation-agent`, `harness:code-reviewer-agent`, `harness:fix-task-agent`, `harness:visual-check-agent` |
+| Subagentes | `harness:mockup-agent`, `harness:execute-task-agent`, `harness:graduation-agent`, `harness:code-reviewer-agent`, `harness:fix-task-agent`, `harness:visual-check-agent` |
 
 ## Preparo × execução
 
@@ -100,7 +100,23 @@ Resumo: `node scripts/tokens.mjs resumo --workdir tmp/pipeline/wi-<id>`. Fora do
 
 Economia embutida:
 - **Sessões separadas:** a execução roda numa sessão nova e lê só `estado.md`, `preflight.md`, `ondas.md` e o plano — nada do contexto do planejamento.
+- **Mockup fora da thread principal:** capturas, PNGs e a montagem do mockup rodam no `mockup-agent` (Sonnet). O `plan-task-agent` (Opus) lê só o `tmp/pipeline/wi-<id>/mockup.md` e conduz o portão. Medido antes desta mudança, na WI 3778: o mockup respondia pela maior parte das chamadas da thread principal (63 leituras de arquivos do mockup e 58 chamadas ao `capturar-tela.mjs`).
+- **Thread principal enxuta:** `plan-task-agent` e `pipeline-agent` têm uma seção "Contexto da thread principal": trabalho mecânico vai para subagente, saída grande vai para arquivo e se lê a fatia, e os portões gravam `estado.md` para permitir `/clear` + `continuar wi-<id>`.
+- **Imagem recortada:** `capturar-tela.mjs screenshot --recorte x,y,w,h` salva só a região que a WI mudou, para conferir sem abrir a tela inteira.
 - **Captura nunca lida inteira:** o hook `guarda-leitura` bloqueia `Read` em capturas de tela; o agente usa `pecas` / `extrair` / `substituir` / `css-de` do `capturar-tela.mjs`.
+
+### Teto de contexto (configuração da máquina, não do plugin)
+
+O custo de uma sessão é `chamadas × contexto acumulado`. Sem teto, a janela de 1M deixa a thread principal crescer até centenas de milhares de tokens sem compactar: nas sessões medidas antes desta mudança, o contexto mediano ficou entre 280k e 365k, e três quartos das chamadas passaram de 200k, a faixa de preço mais cara. No `~/.claude/settings.json`:
+
+```json
+"env": {
+  "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
+  "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "200000"
+}
+```
+
+Sem a segunda chave, o Claude Code avisa que o limite não é imposto e a sessão pode passar dele.
 
 ## Captura da tela real (mockups)
 

@@ -103,6 +103,27 @@ em dia.
 **O cronômetro nunca bloqueia o pipeline.** Se o script falhar (sem
 PowerShell, CSV aberto no Excel), avise o dev uma vez e siga sem registrar.
 
+## Contexto da thread principal
+
+Você roda em Opus e, a cada turno, relê todo o contexto acumulado: o custo
+da sessão é `chamadas × contexto`. Em sessões medidas antes desta regra, a
+thread principal do pipeline passou de 200k em três quartos das chamadas,
+com pico de 670k. Você é **orquestrador**: quem lê código e roda testes são
+os subagentes, e o rastro deles morre com eles.
+
+- **Leia resultados, não processo.** Dos `impl-*.md` e dos arquivos de
+  escalação, leia o resumo, as dúvidas e as perguntas. Não abra o código que
+  eles citam, salvo para a verificação do passo 4 (e, mesmo ali, com `grep`).
+- **Saída grande vai para arquivo**, e você lê a fatia (`head`, `grep`).
+  Nunca traga log de build, de teste ou do gate inteiro para o contexto.
+- **Não faça você o trabalho de um subagente.** Problema em código é do
+  `execute-task-agent` (antes da graduação) ou do `graduation-agent`
+  (depois). Se você se pegar editando, depurando ou rodando teste nesta
+  thread, pare e reinvoque o agente certo.
+- **Retomada limpa.** O `estado.md` é gravado ao fim de cada etapa. Se a
+  statusline passar de 120k entre ondas, recomende ao dev `/clear` e
+  `continuar wi-<id>`: a retomada não precisa do histórico.
+
 ## Instruções
 
 ### 1. Conferir a entrega do preparo
@@ -206,6 +227,11 @@ Quando todas as ondas terminarem, faça uma verificação rápida
 - **Colisão:** dois agentes alteraram o mesmo arquivo?
 - **Registrations de DI:** todos os serviços novos estão registrados?
 - **Imports:** nenhum arquivo referencia algo que não foi criado?
+
+Faça isso com `git diff --stat`, `git diff --name-only` e `grep` dirigido
+(o nome do serviço no arquivo de registro, o símbolo importado), não lendo
+arquivos inteiros. Se precisar de um diff, grave-o em arquivo e leia só o
+trecho que importa.
 
 Você não edita código de produto. Problema encontrado: reinvoque o
 `harness:execute-task-agent` da fatia responsável com o problema descrito
