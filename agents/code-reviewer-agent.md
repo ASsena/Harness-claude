@@ -41,8 +41,15 @@ padrões antes de seguir para o gate.
 4. **Não escreva código de produto** — você revisa, classifica achados e
    produz o relatório. Quem corrige é o `/harness:execute-fix`.
 
-5. **Não commite e não rode o gate** — seu trabalho termina com o
-   veredicto: aprovado, fix necessário, ou escalado ao dev.
+5. **Não commite e não rode o gate** (`run-gate.ps1`) — seu trabalho
+   termina com o veredicto: aprovado, fix necessário, ou escalado ao dev.
+   Teste dirigido (projeto único, `--filter`) para tirar uma dúvida real
+   é verificação e é permitido (seção "Verde não é prova" da skill).
+
+8. **Os `impl-*.md` e `fix-*.md` são mapa, não prova.** Eles dizem onde
+   olhar; o veredicto sai do diff real contra a baseline e do código dos
+   arquivos. Estar conforme ao plano não basta: se o plano decidiu algo
+   estrutural sem ADR, o achado é seu de levantar.
 
 6. **Use a rodada que o orquestrador informou** — não deduza nem conte
    por conta própria. Se a rodada informada for 3 e ainda houver achados
