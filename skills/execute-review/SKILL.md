@@ -32,11 +32,26 @@ Identifique o ponto fixo para o diff:
 
 ## 2. Revisão em dois eixos
 
-Rode `.cursor/commands/execute-code-review.md` sobre o diff contra a baseline.
+### Postura: o diff é a fonte de verdade
+
+Você revisa o **código**, não a narrativa de quem implementou. O plano e os relatórios de implementação (`impl-*.md`, `fix-*.md`) dizem o que *deveria* ter acontecido e onde olhar — são ponto de partida, nunca prova. Leia o **diff real** contra a baseline (`git diff <baseline>..HEAD`) e o código dos arquivos centrais; nunca revise pela lista de arquivos nem pelo resumo do relatório. Diff grande: use `Grep` para achar os pontos quentes e `Read` com offset/limit nos trechos que importam — não pule arquivo por ser "só UI".
+
+**Estar conforme ao plano não basta.** Se o plano errou, o código que o segue fielmente continua errado. Seu trabalho é dizer se o código está **certo**, não só se está **conforme**.
+
+Rode `.cursor/commands/execute-code-review.md` sobre o diff contra a baseline e, além dele, aplique a rubrica de `docs/contexts/code-audit-mode.md` (cobre o previsto? escopo extra? ADRs respeitados? rules da área seguidas? testes adequados? sincronização reversa spec ← código?). Não recrie outra rubrica: abra o arquivo a cada revisão.
+
+### Classificação estrutural (antes dos dois eixos)
+
+**Classifique a mudança pelo que o diff faz, não pelo rótulo do plano ou da fatia.** Pergunte sempre: *este diff muda protocolo, fronteira de módulo, modelo de domínio, superfície de autenticação/autorização, contrato de API ou configuração de segurança?*
+
+- Se sim e o plano/ADR **não** registra essa decisão explicitamente → 🔴 Bloqueante [Spec]: mudança estrutural sem decisão registrada (regra de ADR do `CLAUDE.md` §2). Isso vale mesmo que a mudança esteja dentro de uma fatia do plano chamada "refatoração", "ajuste" ou "UI".
+- Olhe com atenção os arquivos que passam despercebidos num diff de UI: realms/config de identidade, `deploy/**`, `infra/**`, interceptors, guards, migrations, `appsettings*`, políticas de CORS/headers.
+
+Registre o resultado no relatório (§5, "Classificação estrutural"), mesmo quando a resposta for "não".
 
 ### Eixo Standards
 
-Abra as rules relevantes despachadas pelo mapa da `005-documentation-context-hierarchy.mdc` a partir das áreas que o diff toca. **Registre quais rules abriu** — essa lista é insumo do `/revise` depois.
+Abra as rules relevantes despachadas pelo mapa da `005-documentation-context-hierarchy.mdc` a partir das áreas que o diff toca. **Rule não aberta é rule não checada** — quem implementou recebe parte delas pelos `globs`; para você não chega nenhuma, e responder de memória produz achado plausível e errado. **Registre quais rules abriu** — essa lista é insumo do `/revise` depois.
 
 Verifique:
 - Convenções de código, estilo, naming.
@@ -44,19 +59,36 @@ Verifique:
 - Imports, DI, registrations corretos.
 - Sem código morto, sem TODO sem WI.
 
+**Antes de chamar algo de violação de convenção, conte os irmãos.** Nome, sufixo ou padrão só é desvio se os pares **não** fizerem igual — abra os pares e meça. O inverso também vale: se os irmãos têm guard, validação ou registration e o código novo não tem, o default é espelhar.
+
 ### Eixo Spec
 
 Compare o que foi implementado contra:
 - O plano (`.cursor/plans/*.plan.md`).
 - A spec (`backlog/tasks/*.md`), se existir.
 - Os critérios de aceite da WI.
-- Os ADRs aplicáveis.
+- Os ADRs: **liste `docs/adr/` e abra os que as áreas tocadas envolvem** — não confie na linha-resumo do `CLAUDE.md` nem no que o plano citou. Registre quais abriu.
 
 Verifique:
 - Todas as fatias do plano foram implementadas.
 - Nenhum comportamento foi adicionado fora do escopo.
 - Decisões fechadas no plano foram respeitadas.
 - Contratos (API, frontend) estão conforme.
+- O plano não contradiz nenhum ADR vigente. Se contradiz, o achado é do plano, não do código: 🔴 [Spec] com correção esperada "escalar ao dev" — o `/execute-fix` não resolve isso.
+
+### Verde não é prova (critérios da `060` §"Desenho de teste")
+
+Abra a `060-dotnet-code-style-tests.mdc` quando o diff tocar testes ou backend e responda, para a entrega:
+
+- **A defesa dispara?** Se a entrega adiciona guard, fail-fast, limite, authz, validação ou header, provoque a condição e observe a consequência real. Teste que só passa pelo caminho feliz não prova a defesa.
+- **Algum teste novo é vácuo?** Assert que não falharia se o código fosse removido, mock que devolve o próprio valor esperado, teste que só verifica que "não lançou".
+- **O que foi chamado de "opcional", "fora de escopo" ou "resíduo" é mesmo isso?** O que o próprio fix precisou para funcionar não é opcional; se o padrão existe nos irmãos, o ônus é de quem implementou mostrar por que não se aplica.
+
+Você **pode e deve** rodar teste dirigido (projeto único, `--filter`) quando houver dúvida real e for barato — isso é verificação, não gate. O gate completo (`run-gate.ps1`) continua sendo do orquestrador. Declare no relatório o que rodou e o que deixou de rodar e por quê; silêncio não se distingue de esquecimento.
+
+### Resíduo decidido não é achado
+
+Antes de reportar, confira o que o dev já decidiu (plano, escalações anteriores desta WI, tabela de resíduos). Resíduo com decisão do dev **não volta como achado** — só reabre com evidência nova, citada.
 
 ## 3. Classificar achados
 
@@ -111,8 +143,17 @@ Achados parcialmente resolvidos ou não resolvidos ganham novo ID na rodada corr
 ### 🔵 Sugestões (não vão para fix)
 - **R<N>-03** [Standards|Spec] `<arquivo>:<linha>` — <descrição>.
 
+## Classificação estrutural
+<o diff muda protocolo, fronteira de módulo, modelo de domínio, authn/authz, contrato de API ou config de segurança? sim/não; se sim, onde e se há decisão registrada>
+
 ## Rules abertas
 <lista completa de rules que o eixo Standards abriu, ex.: 110, 060, 030, 040, 100>
+
+## ADRs abertos
+<lista dos ADRs abertos no eixo Spec>
+
+## Verificações executadas
+<testes dirigidos que rodou e resultado; o que não rodou e por quê>
 
 ## Veredicto
 - [ ] ✅ **Aprovado** — nenhum 🔴 ou 🟡. Pronto para gate.
