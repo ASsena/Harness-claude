@@ -6,7 +6,7 @@ description: >
   (captura da tela real, peças broker-*, fidelidade, artefato) e devolve tudo
   num único arquivo, tmp/pipeline/wi-<id>/mockup.md. Chamado pelo
   plan-task-agent no passo 3.1 do preparo, para que as capturas, os PNGs e as
-  idas e vindas do mockup não fiquem no contexto da thread principal (Opus).
+  idas e vindas do mockup não fiquem no contexto da thread principal (Fable).
   Não pergunta ao dev: devolve as pendências com recomendação. Não escreve
   código de produto nem grava em platform/**.
 disallowedTools: NotebookEdit, Agent
