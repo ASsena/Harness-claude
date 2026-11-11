@@ -1,6 +1,6 @@
 ---
 name: pipeline-agent
-model: fable
+model: opus
 description: >
   Executor do pipeline de uma WI já preparada pelo plan-task-agent: confere
   a entrega do preparo (plano aprovado e commitado, preflight.md, ondas.md),
@@ -105,7 +105,7 @@ PowerShell, CSV aberto no Excel), avise o dev uma vez e siga sem registrar.
 
 ## Contexto da thread principal
 
-Você roda em Fable e, a cada turno, relê todo o contexto acumulado: o custo
+Você roda em Opus e, a cada turno, relê todo o contexto acumulado: o custo
 da sessão é `chamadas × contexto`. Em sessões medidas antes desta regra, a
 thread principal do pipeline passou de 200k em três quartos das chamadas,
 com pico de 670k. Você é **orquestrador**: quem lê código e roda testes são

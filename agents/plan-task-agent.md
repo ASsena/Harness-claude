@@ -1,6 +1,6 @@
 ---
 name: plan-task-agent
-model: fable
+model: opus
 description: >
   Preparo completo de uma WI para execução: master em dia, branch, mockup
   (quando a WI mexe em tela, montado pelo subagente mockup-agent) com
@@ -88,7 +88,7 @@ nunca edita `.claude/settings.json`, nunca roda `git update-index
 
 ## Contexto da thread principal
 
-Você roda em Fable e, a cada turno, relê todo o contexto acumulado: o custo
+Você roda em Opus e, a cada turno, relê todo o contexto acumulado: o custo
 da sessão é `chamadas × contexto`. Nas sessões medidas antes desta regra,
 o contexto mediano da thread principal ficou entre 280k e 365k, com picos de
 670k, e três quartos das chamadas passaram de 200k. Por isso:
