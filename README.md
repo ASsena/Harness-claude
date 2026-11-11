@@ -100,7 +100,7 @@ Resumo: `node scripts/tokens.mjs resumo --workdir tmp/pipeline/wi-<id>`. Fora do
 
 Economia embutida:
 - **Sessões separadas:** a execução roda numa sessão nova e lê só `estado.md`, `preflight.md`, `ondas.md` e o plano — nada do contexto do planejamento.
-- **Mockup fora da thread principal:** capturas, PNGs e a montagem do mockup rodam no `mockup-agent` (Sonnet). O `plan-task-agent` (Fable) lê só o `tmp/pipeline/wi-<id>/mockup.md` e conduz o portão. Medido antes desta mudança, na WI 3778: o mockup respondia pela maior parte das chamadas da thread principal (63 leituras de arquivos do mockup e 58 chamadas ao `capturar-tela.mjs`).
+- **Mockup fora da thread principal:** capturas, PNGs e a montagem do mockup rodam no `mockup-agent` (Sonnet). O `plan-task-agent` (Opus) lê só o `tmp/pipeline/wi-<id>/mockup.md` e conduz o portão. Medido antes desta mudança, na WI 3778: o mockup respondia pela maior parte das chamadas da thread principal (63 leituras de arquivos do mockup e 58 chamadas ao `capturar-tela.mjs`).
 - **Thread principal enxuta:** `plan-task-agent` e `pipeline-agent` têm uma seção "Contexto da thread principal": trabalho mecânico vai para subagente, saída grande vai para arquivo e se lê a fatia, e os portões gravam `estado.md` para permitir `/clear` + `continuar wi-<id>`.
 - **Imagem recortada:** `capturar-tela.mjs screenshot --recorte x,y,w,h` salva só a região que a WI mudou, para conferir sem abrir a tela inteira.
 - **Captura nunca lida inteira:** o hook `guarda-leitura` bloqueia `Read` em capturas de tela; o agente usa `pecas` / `extrair` / `substituir` / `css-de` do `capturar-tela.mjs`.

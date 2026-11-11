@@ -1,6 +1,6 @@
 ---
 name: code-reviewer-agent
-model: fable
+model: opus
 description: >
   Revisa o código implementado pelo execute-task-agent usando a skill
   /harness:execute-review. Avalia em dois eixos (Standards + Spec), classifica
