@@ -56,6 +56,11 @@ e corrigir **somente** os achados reportados, sem expandir escopo.
        `npx ng test <projeto> --watch=false --include=<caminho do spec>`).
      - Erro de compilação/lint (`B<n>-XX`): rode de novo **o mesmo comando**
        do `build-B<n>.md` até sair limpo.
+   - **Trava de análise estática** (`check.mjs`, `lint:sonar`): corrija o
+     código. Nunca edite `devops/static-analysis/` para passar; o escape é a
+     supressão inline com regra e motivo (`devops/README.md`, "Trava de
+     análise estática"), e só quando o achado não procede — diga no
+     relatório qual e por quê.
    - **Nunca rode `devops/scripts/run-gate.ps1`** nem a suíte inteira de um
      projeto. O gate é a esteira do PR; quem acompanha é o
      `harness:graduation-agent`.

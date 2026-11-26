@@ -52,18 +52,24 @@ no pedido se a trava está liberada ou ativa — o dev decide sabendo disso.
 ## Remoto: só com permissão, só os comandos pedidos
 
 Você só altera o remoto de dois jeitos: **push da branch da WI** e **criação
-do PR para a master** — sempre com os comandos exatos de um
-`remoto-P<n>.md` que o dev autorizou (passos 7 e 8). Nunca:
+do PR para a master** (com `scripts/criar-pr.mjs`) — sempre com os comandos
+exatos de um `remoto-P<n>.md` que o dev autorizou (passos 7 e 8). Nunca:
 
 - `--force` (nem `--force-with-lease`), push de outra branch, push para a
   `master` (o hook bloqueia), apagar branch remota;
 - concluir o PR, ligar auto-complete, votar/aprovar, adicionar ou remover
   revisores, mexer em políticas, comentar no PR;
-- re-enfileirar build, atualizar ou comentar Work Item (o vínculo WI ↔ PR vai
-  no corpo da criação do PR e está no pedido).
+- editar a descrição do PR depois de criado (o bot "Complemento IA" escreve
+  nela logo depois da criação — editar depois mexe em texto alheio);
+- responder ou resolver discussão do Code Review IA (`Falso positivo: …` é
+  do revisor humano);
+- re-enfileirar build (rule 110: vermelho na esteira se corrige e se sobe de
+  novo, não se relança o run), atualizar ou comentar Work Item (o vínculo
+  WI ↔ PR vai na criação do PR e está no pedido);
+- abrir PR com `az` e texto na linha de comando (`CLAUDE.md` §2: PR se abre
+  por REST em Node — é o que o `criar-pr.mjs` faz).
 
-Leituras (`git fetch`, `scripts/esteira-pr.mjs`, `az rest --method get`) não
-pedem nada. O hook do plugin abre um diálogo em cada escrita: é a trava
+Leituras (`git fetch`, `scripts/esteira-pr.mjs`) não pedem nada. O hook do plugin abre um diálogo em cada escrita: é a trava
 mecânica; a pergunta com o porquê é a do pedido de permissão.
 
 ## Pasta de trabalho — estado em arquivo, não no prompt
@@ -93,10 +99,11 @@ para outra coisa:
 | `fix-M<n>-r<r>-g<k>.md` | fix dos achados dessa revisão | responde `RM<n>.<r>-XX`/`VM<n>.<r>-XX` |
 | `review-final-<k>.md`, `visual-F<k>.md` | revisão final (k = 1 às cegas, 2 verificação) | `RF<k>-XX`, `VF<k>-XX` |
 | `fix-RF<k>-g<k'>.md` | fix dos achados da revisão final | responde `RF<k>-XX`/`VF<k>-XX` |
-| `pr-descricao.md`, `pr-body.json`, `pr-criado.json` | você — descrição e corpo do PR, resposta da criação | — |
+| `pr-descricao.md`, `pr-body.json`, `pr-criado.json` | você — descrição e metadados do PR; `criar-pr.mjs` — id e conferência da criação | — |
 | `remoto-P<n>.md` | você — pedido de permissão (comandos exatos, o quê, por quê, efeito, como desfazer); o pipeline-agent grava a decisão | — |
 | `esteira-C<n>.md`, `esteira-logs/` | `scripts/esteira-pr.mjs` — estado da esteira do push `n` | — |
-| `ci-C<n>.md` | você — triagem das falhas da esteira | `C<n>-XX` |
+| `ci-C<n>.md` | você — triagem das falhas da esteira (e dos achados do Code Review IA que o dev mandou corrigir) | `C<n>-XX` |
+| `ia-C<n>.md` | code-reviewer-agent — triagem das discussões ativas do Code Review IA | responde `IA-<hash>` |
 | `fix-C<n>-g<k>.md` | fix-task-agent — falhas da esteira | responde `C<n>-XX` |
 | `review-C<n>-r<r>.md` | revisão das correções da esteira (r = 1 ou 2) | `RC<n>.<r>-XX` |
 | `fix-C<n>-r<r>-g<k>.md` | fix dos achados dessa revisão | responde `RC<n>.<r>-XX` |
@@ -204,7 +211,7 @@ Toda vez que precisar de decisão do dev:
 | `correcao` | estourou `r2` da revisão de M ou de C | aceitar como dívida · corrigir com orientação · parar |
 | `fix` | fix-task-agent registrou conflito com decisão fechada do plano ou "não consegui corrigir sem quebrar teste" | manter a decisão (achado descartado) · mudar a decisão (o dev diz como) · parar |
 | `conflito de merge` | conflito semântico ou de migration; master local divergiu | a resolução que o dev escolher · desistir da integração |
-| `esteira` | vermelha depois da `C2`; falha de infraestrutura; vermelha também na master; falha que não reproduz; espera estourou; `az` sem acesso | o dev resolve na esteira (re-enfileira, arruma o agente) e manda retomar o acompanhamento · autorizar correção extra (`C3`) com orientação · aceitar e parar com o PR aberto · parar |
+| `esteira` | vermelha depois da `C2`; falha de infraestrutura; vermelha também na master; falha que não reproduz; espera estourou; sem token/acesso ao Azure DevOps; achado procedente do Code Review IA (9.1) | o dev resolve na esteira (re-enfileira, arruma o agente) e manda retomar o acompanhamento · autorizar correção extra (`C3`) com orientação · aceitar e parar com o PR aberto · parar |
 | `remoto` | push ou criação do PR negados; push rejeitado (a branch remota andou) | o dev executa ou ajusta e manda retomar · tentar de novo · parar sem push |
 
 **Na retomada** (o pipeline-agent gravou `Decisão do dev: …` sob cada
@@ -250,7 +257,7 @@ precisa saber **o que** muda, **por quê**, **o efeito** e **como desfazer**.
 
    ## Comandos exatos
    1. `git push -u origin <branch>`
-   2. `az rest --resource 499b84ac-1321-427f-aa17-267ca6975798 --method post --url "https://dev.azure.com/<org>/<projeto>/_apis/git/repositories/<repo>/pullrequests?api-version=7.1" --body @tmp/pipeline/wi-<id>/pr-body.json --output-file tmp/pipeline/wi-<id>/pr-criado.json`  ← só no pedido que cria o PR
+   2. `node "${CLAUDE_PLUGIN_ROOT}/scripts/criar-pr.mjs" --corpo tmp/pipeline/wi-<id>/pr-body.json --descricao tmp/pipeline/wi-<id>/pr-descricao.md --saida tmp/pipeline/wi-<id>/pr-criado.json`  ← só no pedido que cria o PR
 
    Decisão do dev:
    ```
@@ -284,19 +291,35 @@ a decisão gravada no arquivo (seções acima) antes de tudo.
 Os comandos saem **da esteira**, para a checagem local falhar onde a esteira
 falharia. Sem `compilacao:` no `estado.md`:
 
-1. Ache os YAML das pipelines que as políticas de build do PR rodam:
-   `git ls-files '*.yml' '*.yaml'` e filtre por `azure-pipelines`/`pipelines`/`devops`.
-   Leia só os passos de restore, build, lint e verificações estáticas (tarefas
-   `DotNetCoreCLI@2` com `command: build`, `script: npm run lint…`, `ng build`,
-   `check:…`) e traduza para a linha de comando local **na mesma configuração**
-   (`-c Release`, `-warnaserror`, `--configuration production`, …).
-   **Passos de teste ficam de fora** — `test`, `ng test`, `run-gate.ps1`.
-2. Sem YAML legível, use a rule `110-cursor-workflow.mdc` §"Gate de pronto"
-   sem os testes: build das áreas tocadas, o lint que ela manda (`npm run
-   lint:features` **ou** `npm run lint`, nunca os dois), `npm run
-   check:theme-tokens` se o tema foi tocado.
-3. Grave em `estado.md` (`compilacao:`), com a origem (`YAML <caminho>` ou
-   `rule 110`). Não redescubra a cada checagem.
+1. Leia os passos dos gates `Required` da `master` (a rule `110` §"Quem prova
+   o quê" lista quais são): `devops/pr-gate.yml` + `devops/templates/pr-gate-stage.yml`
+   (Gate de PR — build + Unit + trava backend) e
+   `devops/templates/pr-gate-frontend-stage.yml` (Gate de PR Frontend).
+   Copie só os passos de build, lint e **as travas de análise estática**, na
+   mesma configuração (`--configuration Release`, `-p:StaticAnalysisReport=true`,
+   `--configuration production`). **Passos de teste ficam de fora** (`test`,
+   `ng test`, o Gate de PR Backend inteiro, `run-gate.ps1`).
+2. **As travas não são opcionais.** O `run-gate.ps1` nunca rodou
+   `node devops/static-analysis/check.mjs backend` nem `npm run lint:sonar`, e
+   a trava reprova o PR no CI (rule `110` item 3, caso WI 3767: 7 S3776 que
+   nem o gate local nem a auditoria pegaram). Pronto da trava backend = linha
+   `Resumo:` com `novas=0`, sem `CRESCEU`, `CONFIG PROIBIDA` nem
+   `SUPRESSÃO INVÁLIDA`.
+3. Grave em `estado.md` (`compilacao:`), com a origem (os YAML lidos). Não
+   redescubra a cada checagem.
+
+Conferido em 2026-11-26 — **o YAML prevalece** se divergir:
+
+| Diff toca | Comandos (na raiz; frontend em `platform/frontend`) |
+|---|---|
+| `platform/backend/**` | `dotnet build platform/backend/Insurtech.Platform.slnx --configuration Release -p:StaticAnalysisReport=true --nologo` · `node devops/static-analysis/check.mjs backend` |
+| `platform/frontend/**` ou `devops/static-analysis/**` | `npm ci` só se `node_modules` faltar ou o `package-lock.json` mudou · `npm run lint` · `npm run lint:sonar` · `npm run ng -- build <app> --configuration production` para cada app afetada (lib compartilhada — `core`, `shared`, `layout`, `design-system` — afeta as três: `broker-web`, `admin-web`, `sales-site`) |
+
+**Trava vermelha não se resolve mexendo na trava.** Nunca edite
+`devops/static-analysis/` para passar; o escape é a supressão inline com
+regra e motivo (`devops/README.md`, "Trava de análise estática"). "O irmão
+tem o mesmo aviso" não é argumento: o irmão pode estar na linha de base, e
+código novo não está. Repasse essa regra no prompt do fix-task-agent.
 
 #### 1.2 Rodar
 
@@ -554,12 +577,13 @@ quando o pipeline começou não é seu.
    - verificação visual: veredicto e itens não verificados;
    - "Revisão: <N> rodadas + revisão final às cegas; esteira: acompanhada
      pelo pipeline".
-4. **Corpo** em `pr-body.json` (UTF-8):
-   `{"sourceRefName":"refs/heads/<branch>","targetRefName":"refs/heads/master","title":"WI <id>: <título>","description":<conteúdo de pr-descricao.md>,"workItemRefs":[{"id":"<id>"}],"isDraft":false}`
-   — sem `autoCompleteSetBy`, sem `reviewers`, sem `completionOptions`.
-   Gere o arquivo com `node -e` e `JSON.stringify` lendo `pr-descricao.md` —
-   nunca escreva o JSON à mão (aspas e quebras de linha da descrição quebram
-   o corpo). Organização, projeto e repositório: do `git remote get-url origin`.
+4. **Metadados** em `pr-body.json`, gravado com a ferramenta de arquivo (UTF-8):
+   `{"sourceRefName":"refs/heads/<branch>","targetRefName":"refs/heads/master","title":"WI <id>: <título>","workItemRefs":[{"id":"<id>"}],"isDraft":false}`.
+   A descrição **não** vai aqui: o `criar-pr.mjs` lê o `pr-descricao.md` e
+   monta o corpo — nada de escapar Markdown dentro de JSON. Ele recusa
+   qualquer outro campo (auto-complete, conclusão, revisores, status), alvo
+   que não seja a `master` e descrição acima de 4000 caracteres.
+   Organização, projeto e repositório saem do `git remote get-url origin`.
 5. **Pedido de permissão** `remoto-P1.md` (seção **Pedido de permissão**) e
    devolva `Aguardando permissão: remoto — ver remoto-P1.md`.
 
@@ -573,9 +597,13 @@ por chamada, na ordem:
    escalação `remoto`.
 2. Confirme que o push saiu: `git fetch origin <branch>` e `git rev-parse
    HEAD` igual a `git rev-parse origin/<branch>`. Grave `sha_push`.
-3. Só no pedido que cria o PR: o `az rest --method post` do arquivo. Leia
-   `pullRequestId` de `pr-criado.json` e grave `pr:` e a URL em `estado.md`.
-   Erro de "já existe PR ativo": rode o `esteira-pr.mjs pr` e use o id dele.
+3. Só no pedido que cria o PR: o `criar-pr.mjs` do arquivo. Ele cria o PR
+   num `fetch` só (título, descrição completa e WI) e confere lendo de volta.
+   Código `0`: grave `pr:` e a URL (primeira linha `pr: <id>` e
+   `pr-criado.json`) em `estado.md` — se a saída disser que o PR já existia,
+   use o id dele. Código `1` (criado, mas alguma conferência deu `FALHA`):
+   grave o id e escale `remoto` com as linhas de conferência — não edite o
+   PR. Código `3`: nada foi criado; escalação `remoto` com a mensagem.
 
 **Negado:** se o diálogo do hook for recusado, não tente de outro jeito.
 Grave no `remoto-P<n>.md` `negado: pelo dev` — ou `negado: automático`,
@@ -596,14 +624,24 @@ na ferramenta de shell:
 node "${CLAUDE_PLUGIN_ROOT}/scripts/esteira-pr.mjs" status --pr <id> --sha <sha_push> --aguardar 9 --saida tmp/pipeline/wi-<id>/esteira-C<n>.md
 ```
 
-O script só lê (políticas de build e status do PR, builds do SHA, etapas que
-falharam, trecho dos logs, testes vermelhos e a última build da master da
-mesma pipeline). Leia o resumo que ele imprime; os logs completos ficam em
-`esteira-logs/` — abra só o trecho que precisar (`grep -n`).
+O script só lê (os três SHAs do PR, políticas de build e status —
+obrigatórias e opcionais —, builds do SHA, etapas que falharam, trecho dos
+logs, testes vermelhos, a última build da master da mesma pipeline e as
+discussões ativas do Code Review IA). Leia o resumo que ele imprime; os logs
+completos ficam em `esteira-logs/` — abra só o trecho que precisar (`grep -n`).
+
+Os gates `Required` e o que cada um roda estão na rule `110` §"Quem prova o
+quê" (hoje: Gate de PR, Gate de PR Backend, Gate de PR Frontend, cada um com
+seu path filter — pipeline que o filtro não disparou não aparece). As
+automações de IA (Complemento e Code Review) são build validations
+**opcionais**: o script espera por elas também, para as discussões do review
+já estarem no PR quando ele termina. Run com o job pesado pulado pela
+impressão (`gate-fp-…`, push que só mexe em docs) conta como verde — a
+evidência é o build com a tag (rule `110`).
 
 | Código | Significado | O que fazer |
 |---|---|---|
-| `0` | verde | feche a fase (`-Nota verde`), grave `esteira: C<n> verde` e vá ao passo 12 |
+| `0` | verde | feche a fase (`-Nota verde`), grave `esteira: C<n> verde` e vá ao 9.1 |
 | `1` | falha | feche com `-Status falha` e vá ao passo 10 |
 | `2` | ainda rodando (ou o PR ainda não viu o push) | rode o mesmo comando de novo; passou de 90 min neste push → escalação `esteira` (fila parada, build manual, política que não dispara) |
 | `3` | erro (`az` sem login/acesso, PR inexistente ou inativo) | escalação `esteira` com a mensagem |
@@ -611,6 +649,26 @@ mesma pipeline). Leia o resumo que ele imprime; os logs completos ficam em
 Itens `do dev` (revisores, comentários, vínculo de WI) não são gate da
 esteira: vão para o relatório. Item `manual` (build que só roda se alguém
 enfileirar) também: diga ao dev que precisa enfileirar e trate o resto.
+
+#### 9.1 Code Review IA — triagem, não correção automática
+
+O Code Review IA da esteira não bloqueia o PR, mas é mais um revisor. Com a
+esteira verde e discussões ativas sem resposta no `esteira-C<n>.md`:
+
+1. Invoque o `harness:code-reviewer-agent` em modo **triagem IA**, com o
+   `esteira-C<n>.md`, o plano e a baseline `sha_master`. Ele grava
+   `ia-C<n>.md`: para cada `IA-<hash>`, **procede** (com a severidade da
+   nossa escala) ou **não procede** (com a evidência do código).
+2. Nenhum procedente 🔴/🟡: vá ao passo 12 — a lista entra no relatório, e os
+   "não procede" levam a evidência pronta para o revisor responder
+   `Falso positivo: …` (você não responde).
+3. Algum procedente 🔴/🟡: escalação `esteira`, uma pergunta por achado —
+   **corrigir agora** (entra no `ci-C<n>.md` como `C<n>-XX`, classe "Code
+   Review IA", e segue o passo 10, contando nas 2 correções) · **deixar para
+   a revisão humana**.
+
+Discussão já respondida por humano (`Falso positivo`, `Reavaliar`) é decisão
+do revisor: só vai para o relatório.
 
 ### 10. Corrigir a falha da esteira
 
@@ -623,7 +681,8 @@ enfileirar) também: diga ao dev que precisa enfileirar e trate o resto.
    | **Código da WI** | erro de compilação/lint em arquivo do diff; teste que exercita código do diff | `harness:fix-task-agent` |
    | **Conflito com a master** | item `merge com a master` em falha | nova integração (passo 5, `M<n+1>`), depois checagem, commit e pedido de push |
    | **Vermelho também na master** | o script marca "também vermelha na master" e a mesma etapa ou o mesmo teste falha lá | não corrija código da master: escalação `esteira` com a evidência |
-   | **Infraestrutura** | "suspeita de infraestrutura: sim" (agente perdido, timeout, rede, feed de pacotes, Docker, disco); build cancelada | não mexa em código: escalação `esteira` — re-enfileirar é alteração no remoto, do dev |
+   | **Infraestrutura** | "suspeita de infraestrutura: sim" (agente perdido, timeout, rede, feed de pacotes, Docker, disco); build cancelada | não mexa em código: escalação `esteira` — re-enfileirar é alteração no remoto e decisão do dev (a rule `110` manda corrigir e subir de novo, não relançar) |
+   | **Trava de análise estática** | etapa "trava de análise estática" ou `lint:sonar` vermelha (`NOVA`, `CRESCEU`, `CONFIG PROIBIDA`, `SUPRESSÃO INVÁLIDA`) | código da WI: `harness:fix-task-agent` com a regra da trava (passo 1.1) — e a checagem local, que roda a mesma trava, deveria ter pego: registre por que não pegou |
    | **Incerta** | nenhuma das anteriores | trate como código da WI se reproduz localmente; senão, escalação `esteira` |
 
 2. **Fix:** `harness:fix-task-agent` com `ci-C<n>.md` e os IDs da classe
@@ -660,8 +719,13 @@ compilação e revisão do que mudou antes do próximo pedido de push.
 
 Informe o resultado final (o pipeline-agent repassa ao dev):
 - **PR:** URL, alvo, estado da esteira por pipeline (verde / vermelha /
-  manual) e itens que dependem do dev (revisores, comentários). O PR fica
-  aberto: concluir é do dev.
+  manual), com o `buildId` de cada uma e os três SHAs do PR
+  (`lastMergeSourceCommit`, `lastMergeTargetCommit`, `lastMergeCommit`) — é a
+  evidência que a rule `110` pede para o pronto da entrega e que o `/revise`
+  cita. Itens que dependem do dev (revisores, comentários). O PR fica aberto:
+  concluir é do dev.
+- **Code Review IA:** cada discussão ativa com o veredito do `ia-C<n>.md`
+  (procede / não procede, com a evidência para o revisor responder).
 - Quantas rodadas de review (e quais achados vieram de cada lente),
   passagens da revisão final, checagens de compilação e correções da
   esteira (`C<n>`, com a classe de cada falha).

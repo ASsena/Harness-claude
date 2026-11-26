@@ -25,6 +25,7 @@ Dentro do pipeline, quem escolhe o modo e numera é o `harness:graduation-agent`
 | **verificação** | os três, nos trechos que os fixes tocaram | relatórios da rodada anterior e os `fix-*.md` | rodadas 2–3 e passagem 2 da revisão final |
 | **final às cegas** | os três + rubrica do `/review-pr` (§2.6) | **só** spec, critérios e "Decisões" do plano, decisões do dev nas escalações | passagem 1 da revisão final, antes do push |
 | **recorte** (M, C, E) | os três, no recorte informado | os arquivos que o orquestrador indicar | resolução de conflito, correção da esteira, escalação |
+| **triagem IA** | o eixo de cada achado | as discussões ativas do Code Review IA da esteira (§2.8) | depois da esteira verde |
 
 Numa lente, fique na sua lente: o que é da outra você não procura (se tropeçar num problema óbvio fora dela, registre como 🔵 com a nota "fora da lente"). A lente estreita é o que dá profundidade — um revisor com todas as rubricas no mesmo contexto lê cada uma pela metade.
 
@@ -126,12 +127,23 @@ Você **pode e deve** rodar teste dirigido (projeto único, `--filter`) quando h
 
 - O diff é `git diff <sha_master>...HEAD`: o PR inteiro, depois de todos os fixes e do merge da master.
 - Os três eixos, inteiros. Comece pelo eixo Correção nos arquivos de maior risco (persistência, authz, endpoints, estado de tela).
-- **Se o repositório tiver o `/review-pr`** (`.claude/skills/review-pr/SKILL.md` ou `.claude/commands/review-pr.md`), abra e aplique a rubrica dele **como lente adicional** — só os critérios de revisão: os achados saem no formato deste relatório, sem plano de correção, comentário em PR ou edição de arquivo. Registre no relatório que aplicou (ou que não existe).
+- **Abra `docs/dev/regras/code-review-ai-context.md`** — é a orientação que o Code Review IA da esteira usa sobre o diff do PR. O que ele acharia depois do push, você acha antes: modelo Lead × Contact × Opportunity, RLS e `tenant_id` fechando por falha, realms do Keycloak, camadas e fronteira de módulo, design system `broker-*`, migrations e `xmin`.
+- **O `/review-pr` do dev**, se existir — procure, nesta ordem, `.claude/skills/review-pr/SKILL.md` e `.claude/commands/review-pr.md` do repositório, e os mesmos caminhos em `~/.claude/`. Achou: leia e aplique a rubrica **como lente adicional** — só os critérios de revisão; os achados saem no formato deste relatório, sem plano de correção, comentário em PR ou edição de arquivo (não carregue a skill para executá-la). Registre no relatório o caminho que aplicou, ou que não achou.
 - Do que o dev decidiu (escalações, "Decisões (não reabrir)" do plano) você sabe — resíduo decidido não é achado (§2.7). Do resto, nada.
 
 ### 2.7 Resíduo decidido não é achado
 
 Antes de reportar, confira o que o dev já decidiu (plano, escalações anteriores desta WI, tabela de resíduos). Resíduo com decisão do dev **não volta como achado** — só reabre com evidência nova, citada.
+
+### 2.8 Triagem do Code Review IA
+
+Depois da esteira verde, o orquestrador traz as discussões ativas do Code Review IA (`IA-<hash>`, com arquivo, linha, severidade e título). Para cada uma, abra o código citado no estado atual da branch e responda:
+
+- **Procede** — o problema existe no código do PR, com cenário concreto. Dê a severidade da **nossa** escala (§3), que não precisa ser a do bot, e a correção esperada.
+- **Não procede** — diga por quê, com `arquivo:linha` e o trecho que mostra (o guard que já existe, a decisão do plano, a rule que permite). É o texto que o revisor humano vai usar para responder `Falso positivo: …` — você não responde na discussão.
+- Discussão já respondida por humano: não reavalie; só registre a decisão dele.
+
+Saída: `ia-C<n>.md`, uma linha por `IA-<hash>` com veredito, severidade e evidência. Não é rodada de review: não há de-para nem veredicto de rodada.
 
 ## 3. Classificar achados
 
@@ -209,8 +221,8 @@ Achados parcialmente resolvidos ou não resolvidos ganham novo ID na rodada corr
 ## ADRs abertos
 <lista dos ADRs abertos no eixo Spec>
 
-## Rubrica do /review-pr
-<final às cegas: aplicada (caminho) | não existe no repositório>
+## Lentes da revisão final
+<final às cegas: `docs/dev/regras/code-review-ai-context.md` aplicado · `/review-pr` aplicado (caminho) ou não encontrado>
 
 ## Verificações executadas
 <testes dirigidos que rodou e resultado; o que não rodou e por quê>

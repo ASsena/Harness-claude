@@ -126,6 +126,22 @@ for (const raw of splitCommands(command)) {
     continue;
   }
 
+  // ----- Script do harness que cria PR (o fetch acontece dentro dele, fora da vista do hook) -----
+  if (t.some((x) => /(^|[\\/])criar-pr\.mjs$/i.test(x))) {
+    const ci = t.indexOf('--corpo');
+    let det = '';
+    let corpo = '';
+    if (ci !== -1 && t[ci + 1]) {
+      try {
+        corpo = readFileSync(path.resolve(dir, t[ci + 1]), 'utf8').replace(/^﻿/, '');
+        const c = JSON.parse(corpo);
+        det = ` (${String(c.sourceRefName).replace(/^refs\/heads\//, '')} → ${String(c.targetRefName).replace(/^refs\/heads\//, '')}, título "${c.title}")`;
+      } catch { /* corpo ilegível: o próprio script recusa */ }
+    }
+    asks.push(`CRIA PR no Azure DevOps${det}${efeitoPr(corpo)}: ${raw.trim()}`);
+    continue;
+  }
+
   // ----- git -----
   const gi = t.findIndex((x) => /^git(\.exe)?$/i.test(x));
   if (gi !== -1) {

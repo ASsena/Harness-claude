@@ -41,6 +41,7 @@ padrões antes de o código sair da máquina.
    | resolução de conflito `M<n>`, rodada `r` | `merge-M<n>.md`, `fix-M<n>-*.md` (e, se `r = 2`, `review-M<n>-r1.md` e `fix-M<n>-r1-*.md`) | **só os arquivos de conflito** do `merge-M<n>.md` | os três | `review-M<n>-r<r>.md` | `RM<n>.<r>-XX` |
    | correção da esteira `C<n>`, rodada `r` | `ci-C<n>.md`, `fix-C<n>-*.md` (e, se `r = 2`, `review-C<n>-r1.md` e `fix-C<n>-r1-*.md`) | o que mudou desde o `sha_push` do `ci-C<n>.md` | os três | `review-C<n>-r<r>.md` | `RC<n>.<r>-XX` |
    | escalação `E<n>` | `escalacao-E<n>.md` (com as decisões do dev) e `fix-E<n>-*.md` | só os itens que o dev mandou corrigir | os três | `review-E<n>.md` | `RE<n>-XX` |
+   | triagem IA `C<n>` | a seção "Code Review IA" do `esteira-C<n>.md` | o código citado em cada discussão, contra `<baseline>...HEAD` | o eixo de cada achado | `ia-C<n>.md` | responde `IA-<hash>` |
 
    O caminho do plano também virá no prompt. Na revisão final às cegas, do
    plano use só os critérios de aceite e as "Decisões (não reabrir)".
