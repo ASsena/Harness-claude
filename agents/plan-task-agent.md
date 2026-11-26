@@ -294,7 +294,8 @@ Com plano, pré-análise e ondas prontos, **pare** e pergunte ao dev com
 `AskUserQuestion`, mostrando antes, curto: caminho do plano, fatias em
 ordem, as ondas (e o porquê de cada dependência), decisões fechadas, o que
 ficou fora do escopo, correções que a pré-análise fez no plano e o gate
-previsto.
+previsto (no pipeline ele é informativo: quem prova a entrega é a esteira
+do PR).
 
 Opções: **Aprovar — pronto para execução** · **Ajustar** (o dev diz o quê;
 você ajusta, refaz 4 e 5 e pergunta de novo) · **Parar aqui** (os commits

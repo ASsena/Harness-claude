@@ -38,6 +38,11 @@ function decide(tool_name, tool_input, cwd = naWi) {
   return JSON.parse(r.stdout).hookSpecificOutput.permissionDecision;
 }
 const sh = (command, cwd) => decide('Bash', { command }, cwd);
+// Texto do diálogo (permissionDecisionReason) — para conferir os rótulos de efeito.
+function motivo(tool_name, tool_input, cwd = naWi) {
+  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name, tool_input, cwd }), encoding: 'utf8' });
+  return r.stdout.trim() ? JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason : '';
+}
 
 const casos = [
   // [descrição, comando, cwd, esperado]
@@ -76,6 +81,10 @@ const casos = [
   ['curl POST no Azure DevOps', 'curl -X POST https://dev.azure.com/o/p/_apis/x', 'wi', 'ask'],
   ['curl GET no Azure DevOps', 'curl https://dev.azure.com/o/p/_apis/x', 'wi', 'passa'],
   ['PowerShell Invoke-RestMethod POST', 'Invoke-RestMethod -Method POST -Uri https://dev.azure.com/o/p/_apis/x', 'wi', 'ask'],
+  ['push --force da branch da WI', 'git push --force origin feature/wi-1-teste', 'wi', 'ask'],
+  ['push --force-with-lease da branch da WI', 'git push --force-with-lease origin feature/wi-1-teste', 'wi', 'ask'],
+  ['criar PR com az rest POST', 'az rest --resource 499b --method post --url "https://dev.azure.com/o/p/_apis/git/repositories/r/pullrequests?api-version=7.1" --body @tmp/pr-body.json', 'wi', 'ask'],
+  ['script de leitura da esteira', 'node scripts/esteira-pr.mjs status --pr 7 --sha abc --aguardar 9', 'wi', 'passa'],
 ];
 
 for (const [desc, cmd, onde, esperado] of casos) {
@@ -109,6 +118,30 @@ const mcp = [
 for (const [desc, tool, input, esperado] of mcp) {
   test(`mcp: ${desc}`, () => assert.equal(decide(tool, input), esperado));
 }
+
+test('rótulo: push forçado', () => {
+  assert.match(motivo('Bash', { command: 'git push -f origin feature/wi-1-teste' }), /FORÇADO/);
+});
+test('rótulo: az rest que liga auto-complete (corpo em @arquivo)', () => {
+  fs.writeFileSync(path.join(naWi, 'corpo.json'), JSON.stringify({ autoCompleteSetBy: { id: 'x' } }));
+  const m = motivo('Bash', { command: 'az rest --method patch --url "https://dev.azure.com/o/p/_apis/git/repositories/r/pullrequests/7?api-version=7.1" --body @corpo.json' });
+  assert.match(m, /AUTO-COMPLETE/);
+});
+test('rótulo: az rest que conclui o PR (corpo inline)', () => {
+  const m = motivo('Bash', { command: `az rest --method patch --url https://dev.azure.com/o/p/_apis/git/pullrequests/7 --body '{"status":"completed"}'` });
+  assert.match(m, /CONCLUI O PR/);
+});
+test('rótulo: criar PR não diz que conclui', () => {
+  fs.writeFileSync(path.join(naWi, 'pr.json'), JSON.stringify({ sourceRefName: 'refs/heads/feature/wi-1-teste', targetRefName: 'refs/heads/master', title: 't' }));
+  const m = motivo('Bash', { command: 'az rest --method post --url https://dev.azure.com/o/p/_apis/git/repositories/r/pullrequests --body @pr.json' });
+  assert.doesNotMatch(m, /CONCLUI|AUTO-COMPLETE/);
+});
+test('rótulo: MCP que conclui PR sem alvo no input', () => {
+  assert.match(motivo('mcp__github__merge_pull_request', { pullNumber: 1 }), /CONCLUI O PR/);
+});
+test('mcp: criar PR para a master pede confirmação (não bloqueia)', () => {
+  assert.equal(decide('mcp__azure-devops__repo_pull_request', { action: 'create', sourceRefName: 'refs/heads/feature/x', targetRefName: 'refs/heads/master' }), 'ask');
+});
 
 test('outras ferramentas passam', () => {
   assert.equal(decide('Read', { file_path: 'x' }), 'passa');

@@ -35,6 +35,24 @@ const tool = input.tool_name || '';
 const ti = input.tool_input || {};
 const cwd = input.cwd || process.cwd();
 
+// Efeitos de PR que o diálogo precisa dizer em voz alta: concluir ou ligar o auto-complete muda a master.
+const AUTO_COMPLETE = ' (LIGA O AUTO-COMPLETE: o PR conclui sozinho e a master muda quando as políticas passarem)';
+const CONCLUI = ' (CONCLUI O PR: a master muda)';
+function efeitoPr(texto) {
+  const s = String(texto || '');
+  if (/"autoCompleteSetBy"/i.test(s)) return AUTO_COMPLETE;
+  if (/"status"\s*:\s*"completed"/i.test(s)) return CONCLUI;
+  if (/"status"\s*:\s*"abandoned"/i.test(s)) return ' (ABANDONA O PR)';
+  return '';
+}
+// Corpo do `az rest`: inline ou `@arquivo` (lido para o diálogo; ilegível = sem rótulo).
+function corpoAzRest(t, low, dir) {
+  const bi = low.findIndex((x) => x === '--body' || x === '-b');
+  const v = bi !== -1 ? t[bi + 1] || '' : '';
+  if (!v.startsWith('@')) return v;
+  try { return readFileSync(path.resolve(dir, v.slice(1)), 'utf8'); } catch { return ''; }
+}
+
 // ---------------------------------------------------------------------------
 // Ferramentas MCP de repositório remoto (Azure DevOps, GitHub)
 // ---------------------------------------------------------------------------
@@ -57,7 +75,8 @@ if (tool.startsWith('mcp__')) {
     out('deny', `Trava do harness: ${tool}${action ? ` (${action})` : ''} alteraria a master diretamente. Isso nunca é feito pelo agente; a master só muda por PR concluído pelo dev.`);
   }
 
-  out('ask', `Alteração no repositório remoto: ${server} › ${name}${action ? ` (${action})` : ''}. ` +
+  const efeito = efeitoPr(blob) || (/(merge|complete)/i.test(`${name} ${action}`) ? CONCLUI : '');
+  out('ask', `Alteração no repositório remoto: ${server} › ${name}${action ? ` (${action})` : ''}${efeito}. ` +
     'O agente precisa ter explicado o motivo logo antes desta chamada. Permitir?');
 }
 
@@ -154,7 +173,10 @@ for (const raw of splitCommands(command)) {
         out('deny', `Trava do harness: este push atingiria a master ("${raw.trim()}"). Push para a master nunca é feito pelo agente; ` +
           'a master só muda por PR concluído pelo dev.');
       }
-      asks.push(`git push${deleting ? ' (APAGA branch remota)' : ''}: ${raw.trim()}`);
+      const forcing = args.some((a) => /^(-f|--force|--force-with-lease(=.*)?|--force-if-includes)$/.test(a)) ||
+        refspecs.some((r) => r.startsWith('+'));
+      asks.push(`git push${deleting ? ' (APAGA branch remota)' : ''}` +
+        `${forcing ? ' (FORÇADO — reescreve o histórico da branch remota)' : ''}: ${raw.trim()}`);
     }
     continue;
   }
@@ -165,13 +187,17 @@ for (const raw of splitCommands(command)) {
     if (low[1] === 'rest') {
       const mi = low.findIndex((x) => x === '--method' || x === '-m');
       const method = mi !== -1 ? (low[mi + 1] || 'get') : 'get';
-      if (method !== 'get' && method !== 'head') asks.push(`Azure DevOps REST ${method.toUpperCase()}: ${raw.trim()}`);
+      if (method !== 'get' && method !== 'head') {
+        asks.push(`Azure DevOps REST ${method.toUpperCase()}${efeitoPr(corpoAzRest(t, low, dir))}: ${raw.trim()}`);
+      }
       continue;
     }
     const verb = low.slice(1).find((x) => !x.startsWith('-') &&
       /^(create|update|delete|remove|add|set|set-vote|complete|abandon|reactivate|run|queue|import|link|unlink|policy|lock|unlock)$/.test(x));
     if (verb && /^(repos|boards|pipelines|devops|artifacts)$/.test(low[1] || '')) {
-      asks.push(`Azure CLI (${low[1]} … ${verb}): ${raw.trim()}`);
+      const efeito = /--auto-complete\s+(true|yes|on)/i.test(raw) ? AUTO_COMPLETE
+        : /--status\s+completed/i.test(raw) || verb === 'complete' ? CONCLUI : '';
+      asks.push(`Azure CLI (${low[1]} … ${verb})${efeito}: ${raw.trim()}`);
     }
     continue;
   }
