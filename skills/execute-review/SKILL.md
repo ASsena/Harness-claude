@@ -60,7 +60,7 @@ Rode `.cursor/commands/execute-code-review.md` sobre o diff contra a baseline e,
 
 **Classifique a mudança pelo que o diff faz, não pelo rótulo do plano ou da fatia.** Pergunte sempre: *este diff muda protocolo, fronteira de módulo, modelo de domínio, superfície de autenticação/autorização, contrato de API ou configuração de segurança?*
 
-- Se sim e o plano/ADR **não** registra essa decisão explicitamente → 🔴 Bloqueante [Spec]: mudança estrutural sem decisão registrada (regra de ADR do `CLAUDE.md` §2). Isso vale mesmo que a mudança esteja dentro de uma fatia do plano chamada "refatoração", "ajuste" ou "UI".
+- Se sim e o plano/ADR **não** registra essa decisão explicitamente → 🔴 Bloqueante [Spec]: mudança estrutural sem decisão registrada (regra de ADR do `CLAUDE.md` §2). Isso vale mesmo que a mudança esteja dentro de uma fatia do plano chamada "refatoração", "ajuste" ou "UI". O fix não resolve isso sozinho: a correção esperada é **escalar ao dev** com as opções reais — reverter o trecho estrutural · formalizar via ADR (critério de "quando oferecer ADR" da `domain-modeling`) · aceitar com ressalva · adiar.
 - Olhe com atenção os arquivos que passam despercebidos num diff de UI: realms/config de identidade, `deploy/**`, `infra/**`, interceptors, guards, migrations, `appsettings*`, políticas de CORS/headers.
 
 Registre o resultado no relatório (§5, "Classificação estrutural"), mesmo quando a resposta for "não".
@@ -90,6 +90,7 @@ Compare o que foi implementado contra:
 Verifique:
 - Todas as fatias do plano foram implementadas; **cada critério de aceite tem código e teste que o provam** — critério sem prova é achado.
 - Nenhum comportamento foi adicionado fora do escopo.
+- **Área de impacto:** os arquivos do diff × a "Área de impacto" declarada na spec (`backlog/tasks/<id>-<slug>.md`, ADR-0039 §4). Arquivo fora do declarado é achado — mesmo legítimo (dependência descoberta na implementação), precisa estar justificado, porque é onde a WI colide com a task de outro dev sem ninguém perceber. Menor que o declarado é normal (a área é teto): só confirme que os critérios foram cobertos.
 - Decisões fechadas no plano foram respeitadas.
 - Contratos (API, frontend) estão conforme.
 - O plano não contradiz nenhum ADR vigente. Se contradiz, o achado é do plano, não do código: 🔴 [Spec] com correção esperada "escalar ao dev" — o `/execute-fix` não resolve isso.
@@ -128,12 +129,12 @@ Você **pode e deve** rodar teste dirigido (projeto único, `--filter`) quando h
 - O diff é `git diff <sha_master>...HEAD`: o PR inteiro, depois de todos os fixes e do merge da master.
 - Os três eixos, inteiros. Comece pelo eixo Correção nos arquivos de maior risco (persistência, authz, endpoints, estado de tela).
 - **Abra `docs/dev/regras/code-review-ai-context.md`** — é a orientação que o Code Review IA da esteira usa sobre o diff do PR. O que ele acharia depois do push, você acha antes: modelo Lead × Contact × Opportunity, RLS e `tenant_id` fechando por falha, realms do Keycloak, camadas e fronteira de módulo, design system `broker-*`, migrations e `xmin`.
-- **O `/review-pr` do dev**, se existir — procure, nesta ordem, `.claude/skills/review-pr/SKILL.md` e `.claude/commands/review-pr.md` do repositório, e os mesmos caminhos em `~/.claude/`. Achou: leia e aplique a rubrica **como lente adicional** — só os critérios de revisão; os achados saem no formato deste relatório, sem plano de correção, comentário em PR ou edição de arquivo (não carregue a skill para executá-la). Registre no relatório o caminho que aplicou, ou que não achou.
+- **O `/review-pr` do dev.** Os critérios dele já estão nesta skill: classificar pelo que o diff faz (§2.2), rubrica do `code-audit-mode.md` com as rules despachadas pela `005` e os ADRs abertos (§2.3), contar os irmãos, "verde não é prova" (§2.5), resíduo decidido (§2.7), área de impacto e processo da ADR-0039 (§2.3 e §5), objetivo × caminho nos achados de arquitetura (§3). O que **não** se aplica aqui, antes do push e com o código feito pelo pipeline: a busca de evidência de gate no CI e a lista de gates para cobrar do dev (a esteira vem depois), o comentário no PR, o voto e o plano de correção. Se achar o arquivo (`.claude/skills/review-pr/SKILL.md` ou `.claude/commands/review-pr.md`, no repositório ou em `~/.claude/`), leia: critério dele que não esteja aqui entra como lente, no formato deste relatório.
 - Do que o dev decidiu (escalações, "Decisões (não reabrir)" do plano) você sabe — resíduo decidido não é achado (§2.7). Do resto, nada.
 
 ### 2.7 Resíduo decidido não é achado
 
-Antes de reportar, confira o que o dev já decidiu (plano, escalações anteriores desta WI, tabela de resíduos). Resíduo com decisão do dev **não volta como achado** — só reabre com evidência nova, citada.
+Antes de reportar, confira o que o dev já decidiu: "Decisões (não reabrir)" do plano, escalações anteriores desta WI (`escalacao-E*.md`), a tabela "Resíduos e decisões" do build-log do passo e a seção de status da ADR do lote. Resíduo com decisão do dev **não volta como achado** — só reabre com evidência nova, citada. Sem ela, a menção certa é "resíduo X segue como decidido".
 
 ### 2.8 Triagem do Code Review IA
 
@@ -159,6 +160,8 @@ Cada achado recebe:
 - **Descrição:** o que está errado e por quê.
 - **Cenário de falha** (obrigatório no eixo Correção): entrada/estado → resultado errado.
 - **Correção esperada:** o que o fix deve fazer (concreto, não vago).
+
+**Achado de arquitetura separa o objetivo do caminho.** A correção esperada diz: (1) o objetivo da mudança, reconhecido quando é legítimo; (2) por que **este caminho** custa caro, com impacto concreto e verificável; (3) **o caminho alternativo** que atinge o mesmo objetivo sem o custo. Sem o (3) o achado é veto, e quem corrige fica sem direção.
 
 **A severidade é do defeito, não da rodada.** O mesmo problema recebe a mesma severidade na rodada 1 e na 3. Rebaixar para 🔵 para fechar o ciclo é proibido: se não convergiu, é escalação — o dev prefere uma pergunta a um buraco no PR.
 
@@ -214,6 +217,9 @@ Achados parcialmente resolvidos ou não resolvidos ganham novo ID na rodada corr
 
 ## Classificação estrutural
 <o diff muda protocolo, fronteira de módulo, modelo de domínio, authn/authz, contrato de API ou config de segurança? sim/não; se sim, onde e se há decisão registrada>
+
+## Conformidade de processo
+<lente A, final e completo — separada da qualidade do código: branch com o ID da WI (ADR-0039), WI vinculada, arquivos fora da área de impacto declarada, decisão estrutural sem ADR. Um diff pode ter código exemplar e ainda não estar conforme por decidir no código algo que cabia a uma ADR — diga isso explicitamente>
 
 ## Rules abertas
 <lista completa de rules que o eixo Standards abriu, ex.: 110, 060, 030, 040, 100>

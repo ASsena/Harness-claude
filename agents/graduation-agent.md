@@ -373,8 +373,14 @@ fix-agent.
 ### 3. Analisar dependências entre achados
 
 Quando o veredicto for "Fix necessário", antes de disparar os fixes,
-analise os achados 🔴/🟡 de todos os relatórios da rodada e monte o **grafo
-de dependências**:
+separe os achados cuja correção esperada é **"escalar ao dev"** (decisão
+estrutural sem ADR, plano que contradiz ADR): eles não vão para o
+fix-task-agent — viram escalação `review` já nesta rodada, com as opções do
+achado (reverter o trecho · formalizar via ADR · aceitar com ressalva ·
+adiar). Os outros seguem em paralelo, se não dependerem desses.
+
+Depois, analise os achados 🔴/🟡 restantes de todos os relatórios da rodada e
+monte o **grafo de dependências**:
 
 Para cada achado, identifique:
 - **Arquivo(s) que o fix vai alterar.**
