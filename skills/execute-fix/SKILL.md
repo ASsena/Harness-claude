@@ -9,7 +9,7 @@ Recebe o relatório do `/execute-review` e corrige **somente** os achados 🔴 (
 
 ## Entrada
 
-- Relatório do `/execute-review` com achados classificados e numerados.
+- Relatório do `/execute-review` com achados classificados e numerados — ou, dentro do pipeline, outro relatório com IDs (erros da checagem de compilação `B<n>`, falhas da esteira do PR `C<n>`, conflitos `M<n>`, decisões do dev `E<n>`).
 - O plano original (para não desviar do escopo).
 
 ## 1. Regras de ouro
@@ -49,6 +49,8 @@ Para cada achado 🔴/🟡, na ordem do relatório:
 
 ## 3. Testes impactados
 
+**Falha que veio de fora do review** (compilação, esteira): reproduza antes de corrigir — o mesmo comando de build/lint, ou `--filter` exatamente nos testes que falharam. O que não reproduz localmente não se corrige por palpite: vai para a seção "Não reproduzido" do relatório.
+
 Se o fix alterou comportamento (não apenas naming/estilo):
 - Rode os testes que cobrem o trecho alterado.
 - Se um teste quebrou por causa do fix, corrija o teste **se e somente se** o fix está correto e o teste refletia o comportamento errado.
@@ -85,6 +87,9 @@ Se o fix alterou comportamento (não apenas naming/estilo):
 ## Conflitos com decisões fechadas
 <achados cujo fix conflitaria com decisão do plano — escalar ao dev>
 - R<N>-XX conflita com decisão "<qual>" — <explicação>.
+
+## Não reproduzido
+<falhas de compilação ou da esteira que não reproduziram localmente — o comando rodado, o resultado e a diferença de ambiente suspeita; omitir quando não houver>
 ```
 
 ## 5. Saída

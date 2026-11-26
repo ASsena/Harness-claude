@@ -14,6 +14,7 @@
 .EXAMPLE
   log-fase.ps1 -Acao inicio -WorkDir tmp\pipeline\wi-3224 -Fase pipeline -Wi 3224
   log-fase.ps1 -Acao inicio -WorkDir tmp\pipeline\wi-3224 -Fase portao-plano -Tipo espera
+  log-fase.ps1 -Acao inicio -WorkDir tmp\pipeline\wi-3224 -Fase esteira-C1 -Tipo esteira
   log-fase.ps1 -Acao fim    -WorkDir tmp\pipeline\wi-3224 -Fase portao-plano -Nota "aprovado"
   log-fase.ps1 -Acao fechar-abertas -WorkDir tmp\pipeline\wi-3224 -Status interrompido
   log-fase.ps1 -Acao resumo -WorkDir tmp\pipeline\wi-3224
@@ -31,7 +32,7 @@ param(
 
   [string]$Wi,
 
-  [ValidateSet('trabalho', 'espera')]
+  [ValidateSet('trabalho', 'espera', 'esteira')]
   [string]$Tipo = 'trabalho',
 
   [ValidateSet('ok', 'falha', 'escalado', 'cancelado', 'interrompido')]
@@ -186,9 +187,11 @@ switch ($Acao) {
     $total = $rows | Where-Object { $_.fase -eq 'pipeline' }
     $espera = & $sum ($rows | Where-Object { $_.tipo -eq 'espera' })
     if (-not $espera) { $espera = 0 }
+    $esteira = & $sum ($rows | Where-Object { $_.tipo -eq 'esteira' })
+    if (-not $esteira) { $esteira = 0 }
     if ($total) {
       $t = [double]$total[0].duracao_seg
-      Write-Output ("Total: {0} | esperando o dev: {1} | trabalhando: {2}" -f (Format-Duration $t), (Format-Duration $espera), (Format-Duration ($t - $espera)))
+      Write-Output ("Total: {0} | esperando o dev: {1} | esperando a esteira: {2} | trabalhando: {3}" -f (Format-Duration $t), (Format-Duration $espera), (Format-Duration $esteira), (Format-Duration ($t - $espera - $esteira)))
     }
     Write-Output "CSV: $Csv (run $runId)"
   }

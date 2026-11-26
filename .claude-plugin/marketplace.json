@@ -8,7 +8,7 @@
     {
       "name": "harness",
       "source": "./",
-      "description": "Agentes e skills do pipeline plan → implement → review ↔ fix → graduate."
+      "description": "Agentes e skills do pipeline plan → implement → review ↔ fix → PR + esteira."
     }
   ]
 }

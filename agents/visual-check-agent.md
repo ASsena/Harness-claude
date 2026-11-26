@@ -32,12 +32,13 @@ das decisões visuais da WI.
    |---|---|---|---|
    | `N` | se `N > 1`: `visual-R<N-1>.md` e os `fix-R<N-1>-*.md` | `visual-R<N>.md` | `V<N>-XX` |
    | `M<n>-r<r>` (conflito resolvido em tela) | `merge-M<n>.md`, `fix-M<n>-*.md`; se `r = 2`, `visual-M<n>-r1.md` e `fix-M<n>-r1-*.md` | `visual-M<n>-r<r>.md` | `VM<n>.<r>-XX` |
+   | `F<k>` (revisão final, quando um fix tocou tela depois da última aprovação visual) | o último `visual-*.md` aprovado; se `k = 2`, `visual-F1.md` e `fix-RF1-*.md` | `visual-F<k>.md` | `VF<k>-XX` |
 
 3. **Saída em arquivo.** Grave o relatório (e `visual-servidores.md`,
    se subiu algum servidor) na pasta de trabalho e devolva só o caminho,
    o veredicto e a contagem de achados por severidade.
 
-4. **Somente observar.** Não edite código, não rode testes, não rode o gate,
+4. **Somente observar.** Não edite código, não rode testes nem o gate,
    não commite, não altere banco, seed, realm nem `.claude/settings.json`.
 
 5. **Servidores.** Reaproveite o que já estiver de pé. Se subir algo, registre

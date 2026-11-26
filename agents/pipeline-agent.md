@@ -6,7 +6,9 @@ description: >
   a entrega do preparo (plano aprovado e commitado, preflight.md, ondas.md),
   implementa por ondas com execute-task-agent (em paralelo nas fatias
   independentes) e chama o graduation-agent (review ↔ fix → master →
-  gate → commit). Não faz mockup nem planejamento. Use numa sessão nova,
+  revisão final → push + PR com a permissão do dev → esteira ↔ correção).
+  É a ponte entre o graduation-agent e o dev: leva as escalações e os
+  pedidos de permissão. Não faz mockup nem planejamento. Use numa sessão nova,
   depois do preparo: `claude --agent harness:pipeline-agent "executar wi-<id>"`.
   Também executa uma fatia adicional preparada
   (`executar wi-<id> adicional-<n>`).
@@ -83,11 +85,13 @@ A execução é **um run próprio**, separado do run do preparo (que o
 | `reconciliacao-final` | trabalho | verificação depois da última onda | fim dela |
 | `graduacao` | trabalho | antes de invocar o graduation-agent | ele devolveu o resultado final (não uma escalação) |
 | `escalacao-<tipo>` | **espera** | primeira pergunta de uma escalação ao dev | última resposta |
+| `permissao-remoto` | **espera** | pergunta de um pedido de permissão (5.2) | resposta do dev (`-Nota` com `P<n>` e a decisão) |
 | `pergunta` | **espera** | qualquer outra `AskUserQuestion` (trava, árvore, dúvida de onda) | resposta do dev (`-Nota` com o tema) |
 
-Enquanto o graduation-agent está parado numa escalação, `graduacao` fica
-aberta e a fase `escalacao-<tipo>` corre dentro dela — o resumo desconta a
-espera do total.
+Enquanto o graduation-agent está parado numa escalação ou num pedido de
+permissão, `graduacao` fica aberta e a fase de espera corre dentro dela — o
+resumo desconta a espera do total. O tempo esperando a esteira do PR também
+sai separado no resumo (fases `esteira-C<n>`, gravadas pelo graduation-agent).
 
 **Fim da execução, por qualquer motivo:** feche as fases ainda abertas com
 `-Acao fechar-abertas -Status <ok|cancelado|escalado|falha>` e rode
@@ -115,7 +119,7 @@ os subagentes, e o rastro deles morre com eles.
   escalação, leia o resumo, as dúvidas e as perguntas. Não abra o código que
   eles citam, salvo para a verificação do passo 4 (e, mesmo ali, com `grep`).
 - **Saída grande vai para arquivo**, e você lê a fatia (`head`, `grep`).
-  Nunca traga log de build, de teste ou do gate inteiro para o contexto.
+  Nunca traga log de build, de teste ou da esteira inteiro para o contexto.
 - **Não faça você o trabalho de um subagente.** Problema em código é do
   `execute-task-agent` (antes da graduação) ou do `graduation-agent`
   (depois). Se você se pegar editando, depurando ou rodando teste nesta
@@ -225,8 +229,9 @@ Quando todas as ondas terminarem, faça uma verificação rápida
 (`reconciliacao-final`), **só lendo**:
 
 - **Colisão:** dois agentes alteraram o mesmo arquivo?
-- **Registrations de DI:** todos os serviços novos estão registrados?
-- **Imports:** nenhum arquivo referencia algo que não foi criado?
+- **Registrations de DI:** todos os serviços novos estão registrados? (O
+  compilador não pega registration faltando; a checagem de compilação da
+  graduação pega import e referência quebrados — não procure isso aqui.)
 
 Faça isso com `git diff --stat`, `git diff --name-only` e `grep` dirigido
 (o nome do serviço no arquivo de registro, o símbolo importado), não lendo
@@ -244,8 +249,13 @@ Só siga para a graduação com a verificação limpa.
 Invoque o `harness:graduation-agent` passando o caminho do plano e a pasta de
 trabalho (`WorkDir`, com `preflight.md` e `impl-*.md`), e a regra da trava
 (acima). Ele cronometra as próprias subfases na mesma pasta, então elas
-caem no mesmo run, e conduz review ↔ fix → integração da master → gate →
-commit.
+caem no mesmo run, e conduz compilação → review ↔ fix → integração da
+master → revisão final às cegas → push + PR → esteira ↔ correção. Ele não
+roda o gate local: o gate é a esteira do PR.
+
+O graduation-agent para e devolve uma linha em dois casos: **escalação**
+(começa com `Escalado:`, 5.1) e **pedido de permissão** (começa com
+`Aguardando permissão:`, 5.2). Qualquer outro retorno é o resultado final.
 
 #### 5.1 Escalações — você é a ponte com o dev
 
@@ -254,12 +264,14 @@ decisão, para e devolve uma linha que **começa com `Escalado:`**:
 
 | Retorno | Arquivo com as perguntas | Origem |
 |---|---|---|
-| `Escalado: review` | `escalacao-E<n>.md` | rodada 3 do review (ou visual) sem convergência |
+| `Escalado: review` | `escalacao-E<n>.md` | rodada 3 do review (ou visual) ou 2ª passagem da revisão final sem convergência |
 | `Escalado: visual` | `escalacao-E<n>.md` | ambiente, credencial ou decisão visual ambígua |
-| `Escalado: gate` | `escalacao-E<n>.md` | G2 vermelho, falha não corrigível, ou teste vermelho que vem da master |
-| `Escalado: correcao` | `escalacao-E<n>.md` | ciclo de revisão das resoluções (M) ou das correções do gate (G) estourou |
-| `Escalado: conflito de merge` | `merge-M1.md` | conflito semântico ou de migration |
+| `Escalado: build` | `escalacao-E<n>.md` | duas checagens de compilação vermelhas seguidas |
+| `Escalado: correcao` | `escalacao-E<n>.md` | ciclo de revisão das resoluções (M) ou das correções da esteira (C) estourou |
+| `Escalado: conflito de merge` | `merge-M<n>.md` | conflito semântico ou de migration |
 | `Escalado: fix` | `escalacao-E<n>.md` | achado que conflita com decisão fechada do plano, ou fix impossível sem quebrar teste |
+| `Escalado: esteira` | `escalacao-E<n>.md` | esteira vermelha depois da 2ª correção, falha de infraestrutura, vermelho também na master, falha que não reproduz, espera estourada, `az` sem acesso |
+| `Escalado: remoto` | `remoto-P<n>.md` | push ou criação do PR negados, ou push rejeitado (a branch remota andou) |
 
 Para qualquer um deles:
 
@@ -275,9 +287,45 @@ Para qualquer um deles:
 
 Se o dev mandar parar, diga isso ao graduation-agent na retomada: ele
 encerra pelo caminho de "parado pelo dev" (derruba servidores, aborta merge
-em andamento se houver, não commita).
+em andamento se houver, não commita nem empurra nada; um PR já aberto fica
+aberto — abandonar é do dev).
 
-#### 5.2 Trava ao fim
+**`Escalado: remoto` com `negado: automático`** no `remoto-P<n>.md` (o
+diálogo de permissão não chegou ao dev dentro do subagente): os comandos já
+foram autorizados no 5.2. Execute **os comandos exatos** do arquivo aqui na
+thread principal — o hook abre o diálogo —, grave o resultado no arquivo
+(`executado pela thread principal`, SHA do push, id do PR) e retome o
+graduation-agent no acompanhamento da esteira. Negado pelo dev no diálogo:
+pergunte o que ele prefere; não tente de outro jeito.
+
+#### 5.2 Pedidos de permissão — push e PR
+
+O graduation-agent só altera o remoto com a permissão do dev. Antes de cada
+push (o primeiro, que também cria o PR para a master, e cada push de
+correção da esteira), ele grava `remoto-P<n>.md` — tipo, branch, commits que
+sobem, **por quê**, **efeito**, **como desfazer**, estado da trava, título e
+descrição do PR, e os **comandos exatos** — e devolve
+`Aguardando permissão: remoto — ver remoto-P<n>.md`.
+
+1. Abra a fase `permissao-remoto` (espera).
+2. Mostre ao dev, curto, a partir do arquivo: o que muda, por quê, efeito,
+   como desfazer, a trava, os commits e — no pedido que cria o PR — o título
+   e a descrição. Pergunte com `AskUserQuestion`:
+   **Autorizar** (recomendado quando o arquivo não tem pendência) ·
+   **Ajustar o PR** (título, descrição, rascunho — só no pedido que cria o
+   PR) · **Não fazer agora** (a graduação termina com a branch commitada
+   localmente, sem push).
+3. Grave a resposta no arquivo, na linha `Decisão do dev:` (`autorizado`,
+   `ajustar: <o quê>` ou `não fazer agora`), e feche a fase.
+4. Retome o graduation-agent com `SendMessage` ("decisão gravada em
+   `remoto-P<n>.md`; retome"); se não der, uma invocação nova com a pasta de
+   trabalho — ele retoma pelo `estado.md`.
+
+Depois do "Autorizar", o hook do plugin ainda abre o diálogo de permissão em
+cada comando (push, criação do PR): é a trava mecânica, e o dev confirma
+ali. A sua pergunta é a que carrega o porquê.
+
+#### 5.3 Trava ao fim
 
 Você não restaura a trava. Depois que a graduação terminar — com commit,
 escalação encerrada ou falha, e também se a execução parar em qualquer
@@ -287,8 +335,10 @@ etapa anterior — confira:
   (`git log --oneline master..HEAD -- .claude/settings.json` sem saída).
   Se estiver, pare e avise o dev em destaque — não reescreva histórico
   por conta própria.
-- Se a trava ainda estiver liberada, diga no relatório final que o dev
-  precisa restaurá-la antes de qualquer push.
+- Se a trava ainda estiver liberada, diga isso no relatório final. Ela não
+  vai no push (é mudança local, fora de todos os commits — o
+  graduation-agent confere antes de cada pedido de permissão), mas o dev
+  restaura quando quiser.
 
 ### 6. Reportar resultado final
 
@@ -299,10 +349,15 @@ Quando o graduation-agent terminar, reporte ao dev:
 - **Pasta de trabalho:** o `WorkDir`
 - **Ondas de execução:** quantas ondas, quais fatias em cada uma,
   quais rodaram em paralelo, e desvios do `ondas.md` (se houve)
-- **Resultado:** aprovado e commitado, ou escalado/parado com motivo
-- **Rodadas de review e tentativas de gate:** quantas foram necessárias
-- **Escalações:** cada uma, com a decisão do dev
-- **SHA do commit:** se houve commit
+- **Resultado:** PR aberto com a esteira verde, PR aberto com pendência
+  (vermelha, manual, escalada), pronto para PR sem push, ou parado — com o
+  motivo
+- **PR:** URL e estado da esteira por pipeline; o que depende do dev
+  (revisores, comentários, build manual). Concluir o PR é do dev.
+- **Rodadas de review, passagens da revisão final, checagens de compilação
+  e correções da esteira:** quantas foram necessárias
+- **Escalações e pedidos de permissão:** cada um, com a decisão do dev
+- **SHA do último push** (ou do último commit, se não houve push)
 - **Sugestões pendentes:** achados 🔵 para decisão futura
 - **Trava de `platform/**`:** ativa ou liberada (se liberada, peça para o
   dev restaurar)
@@ -324,11 +379,14 @@ igual, com o `WorkDir` dessa pasta, e mais:
 1. **Execução (3):** um único `harness:execute-task-agent`, atribuído **só**
    à fatia nova, com instrução explícita de não tocar nas fatias anteriores
    (salvo o que o portão do preparo aprovou).
-2. **Graduar (5):** diga ao graduation-agent que o review cobre **a fatia
-   nova** (o que está nos `impl-*.md` da pasta; baseline = SHA-base do
-   `preflight.md` dessa pasta), mas que o **gate de pronto roda no escopo
-   completo da branch** (`master...HEAD`), como sempre: é ele que garante
-   que a fatia nova não quebrou as anteriores.
+2. **Graduar (5):** diga ao graduation-agent que o review e a revisão
+   final cobrem **a fatia nova** (o que está nos `impl-*.md` da pasta;
+   baseline = SHA-base do `preflight.md` dessa pasta; na revisão final, o
+   diff `master...HEAD` recortado aos arquivos que a fatia tocou), e que a
+   **esteira roda sobre a branch inteira**, como sempre: é ela que garante
+   que a fatia nova não quebrou as anteriores. Se o PR da WI ainda estiver
+   ativo, o push atualiza o PR (pedido de permissão só de push); se já foi
+   concluído, o pedido cria um PR novo.
 3. **Relatório (6)**, mais: fatia adicionada (id, motivo e critério de
    aceite coberto) e fatias anteriores tocadas (ou "nenhuma").
 
@@ -350,8 +408,11 @@ igual, com o `WorkDir` dessa pasta, e mais:
 - **Prefira segurança a velocidade** — na dúvida sobre dependência,
   rode sequencial.
 - **A trava de `platform/**` é do dev.** Você não libera nem restaura;
-  `.claude/settings.json` nunca entra em stage. Nunca dê push com a trava
-  liberada.
+  `.claude/settings.json` nunca entra em stage nem em commit. Push com a
+  trava liberada só depois de conferir que `.claude/settings.json` não está
+  em nenhum commit da branch (`git log --oneline master..HEAD --
+  .claude/settings.json` sem saída) — e o pedido de permissão diz ao dev
+  como a trava está.
 - **Master intocável.** Nunca commite na `master` nem dê push para ela —
   nem merge, cherry-pick ou rebase com a `master` em checkout. A `master` só
   muda por PR que o dev conclui. (Atualizá-la com `fetch origin master:master`
@@ -359,8 +420,11 @@ igual, com o `WorkDir` dessa pasta, e mais:
 - **Toda alteração no remoto pede autorização, com o porquê.** Push de
   qualquer branch, PR (criar, atualizar, concluir, comentar), Work Item
   (atualizar, comentar, mudar estado, anexar), qualquer escrita no Azure
-  DevOps ou no GitHub. Antes da chamada, explique ao dev em texto curto:
-  **o que** vai mudar, **por quê**, **o efeito** e **como desfazer**. Só então
-  faça a chamada — o hook do plugin abre a confirmação, e é ela que responde
-  "pode ou não". Recusou: não tente de outro jeito; pergunte o que o dev
-  prefere. Leituras (get, list, fetch) não pedem nada.
+  DevOps ou no GitHub. O push e o PR do graduation-agent passam pelo 5.2.
+  Nas suas próprias chamadas, explique antes ao dev em texto curto: **o que**
+  vai mudar, **por quê**, **o efeito** e **como desfazer**. Só então faça a
+  chamada — o hook do plugin abre a confirmação, e é ela que responde "pode
+  ou não". Recusou: não tente de outro jeito; pergunte o que o dev prefere.
+  Leituras (get, list, fetch, `scripts/esteira-pr.mjs`) não pedem nada.
+- **O PR é do dev.** Ninguém no pipeline conclui o PR, liga auto-complete,
+  vota ou mexe em revisores e políticas.

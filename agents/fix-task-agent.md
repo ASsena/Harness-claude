@@ -2,11 +2,12 @@
 name: fix-task-agent
 model: sonnet
 description: >
-  Recebe o relatório do code-reviewer-agent (ou testes vermelhos do gate,
-  ou conflitos de merge, ou decisões de uma escalação) e corrige
-  cirurgicamente os achados 🔴/🟡 usando a skill /harness:execute-fix,
-  validando só com testes dirigidos. Não expande escopo e nunca roda o
-  gate. Use quando o review reportar achados que precisam de correção.
+  Recebe o relatório do code-reviewer-agent (ou erros da checagem de
+  compilação, falhas da esteira do PR, conflitos de merge, ou decisões de
+  uma escalação) e corrige cirurgicamente os achados 🔴/🟡 usando a skill
+  /harness:execute-fix, validando só com testes dirigidos. Não expande
+  escopo e nunca roda o gate. Use quando o review reportar achados que
+  precisam de correção.
 disallowedTools: Agent
 ---
 
@@ -27,11 +28,13 @@ e corrigir **somente** os achados reportados, sem expandir escopo.
 
    | Relatório | IDs | Saída |
    |---|---|---|
-   | `review-R<N>.md` / `visual-R<N>.md` | `R<N>-XX` / `V<N>-XX` | `fix-R<N>-g<k>.md` |
+   | `review-R1-A.md`, `review-R1-B.md`, `review-R<N>.md` / `visual-R<N>.md` | `R1-AXX`, `R1-BXX`, `R<N>-XX` / `V<N>-XX` | `fix-R<N>-g<k>.md` |
+   | `build-B<n>.md` (erros de compilação/lint) | `B<n>-XX` | `fix-B<n>-g<k>.md` |
    | `merge-M<n>.md` (resolução já decidida) | `M<n>-XX` | `fix-M<n>-g<k>.md` |
    | `review-M<n>-r<r>.md` / `visual-M<n>-r<r>.md` | `RM<n>.<r>-XX` / `VM<n>.<r>-XX` | `fix-M<n>-r<r>-g<k>.md` |
-   | `gate-G<n>.md` (testes vermelhos) | `G<n>-XX` | `fix-G<n>-g<k>.md` |
-   | `review-G<n>-r<r>.md` | `RG<n>.<r>-XX` | `fix-G<n>-r<r>-g<k>.md` |
+   | `review-final-<k>.md` / `visual-F<k>.md` | `RF<k>-XX` / `VF<k>-XX` | `fix-RF<k>-g<k'>.md` |
+   | `ci-C<n>.md` (falhas da esteira do PR) | `C<n>-XX` | `fix-C<n>-g<k>.md` |
+   | `review-C<n>-r<r>.md` | `RC<n>.<r>-XX` | `fix-C<n>-r<r>-g<k>.md` |
    | `escalacao-E<n>.md` (decisão do dev gravada sob cada pergunta) | `E<n>-XX` | `fix-E<n>-g<k>.md` |
 
    Em conflito de merge, aplique **exatamente** a resolução do arquivo,
@@ -51,16 +54,36 @@ e corrigir **somente** os achados reportados, sem expandir escopo.
        (uma ou mais classes, separadas por `|`).
      - Frontend: o spec específico da lib tocada (ex.:
        `npx ng test <projeto> --watch=false --include=<caminho do spec>`).
-     - Se o achado veio do gate, rode com `--filter` **exatamente os testes
-       que falharam**, até ficarem verdes.
+     - Erro de compilação/lint (`B<n>-XX`): rode de novo **o mesmo comando**
+       do `build-B<n>.md` até sair limpo.
+   - **Trava de análise estática** (`check.mjs`, `lint:sonar`): corrija o
+     código. Nunca edite `devops/static-analysis/` para passar; o escape é a
+     supressão inline com regra e motivo (`devops/README.md`, "Trava de
+     análise estática"), e só quando o achado não procede — diga no
+     relatório qual e por quê.
    - **Nunca rode `devops/scripts/run-gate.ps1`** nem a suíte inteira de um
-     projeto. O gate roda uma vez só, no final, pelo `harness:graduation-agent`.
+     projeto. O gate é a esteira do PR; quem acompanha é o
+     `harness:graduation-agent`.
    - Se o orquestrador disser que outro agente está testando o mesmo
      projeto em paralelo, **não rode testes** e informe quais filtros
      deveriam ser rodados.
    - No relatório, liste os comandos de teste executados e o resultado.
 
-5a. **Achado visual (`V…`)**: corrija pelo esperado × observado do relatório
+5a. **Falha da esteira (`C<n>-XX`): reproduza antes de corrigir.** O
+   `ci-C<n>.md` traz a etapa, a mensagem, o arquivo:linha ou o teste e o
+   trecho do log (o log completo está em `esteira-logs/`).
+   - Erro de compilação ou lint: rode localmente o comando equivalente ao
+     da etapa (o `compilacao:` do `estado.md` diz qual) e confirme o mesmo
+     erro antes de mexer.
+   - Teste vermelho: rode com `--filter` **exatamente os testes que
+     falharam** e veja o vermelho; corrija até ficar verde.
+   - **Não reproduz localmente** (passa aqui, falha lá): não corrija por
+     palpite. Registre no relatório, seção "Não reproduzido", com o que
+     rodou e a diferença de ambiente que suspeita — o orquestrador escala.
+   - Falha que vem de código fora do diff da WI ou de infraestrutura não é
+     sua: registre e devolva.
+
+5b. **Achado visual (`V…`)**: corrija pelo esperado × observado do relatório
    e pela §Especificação visual da spec — não pelo seu olho. Você não abre o
    navegador; quem confirma é a próxima rodada do `harness:visual-check-agent`.
    Rode só o spec do componente tocado, se existir.
